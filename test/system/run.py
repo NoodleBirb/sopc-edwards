@@ -19,7 +19,7 @@ Environment
 -----------
   TOPC      path to topc binary (default: <root>/build/src/topc)
   TOPCLANG  path to clang for linking (required)
-  RTLIB     path to rtlib directory (default: <root>/build/rtlib)
+  RTLIB     path to rtlib directory (default: rtlib/ in TOPC's build directory)
 """
 
 import argparse
@@ -47,7 +47,9 @@ ROOT_DIR = Path(
 
 TOPC     = Path(os.environ.get("TOPC",    str(ROOT_DIR / "build/src/topc")))
 TOPCLANG = os.environ.get("TOPCLANG", "")
-RTLIB    = Path(os.environ.get("RTLIB",   str(ROOT_DIR / "build" / "rtlib")))
+# CMake writes runtime bitcode beside src/ in the selected build directory.
+# Derive this from TOPC so alternate builds work without a second override.
+RTLIB    = Path(os.environ.get("RTLIB", str(TOPC.resolve().parent.parent / "rtlib")))
 
 SELFTESTS_DIR = SCRIPT_DIR / "selftests"
 IOTESTS_DIR   = SCRIPT_DIR / "iotests"

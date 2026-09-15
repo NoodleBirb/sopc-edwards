@@ -191,6 +191,34 @@ Use `./bin/runtests.sh -s` for only system tests or `./bin/runtests.sh -u` for o
 
 ## Using topc
 
+For Deliverable 1 SOP syntax (sequences, range/sequence iteration, and lambdas),
+use `build/src/topc --parse-only program.sop` (or the executable in your chosen
+build directory). This validates the entire program and prints its ANTLR parse
+tree. Invalid syntax exits unsuccessfully; names, types, bounds, and other
+semantic properties are not checked. The option cannot be combined with AST,
+analysis, or compilation options.
+
+Use `.sop` for SOP source files; `.top` remains supported for existing programs.
+The compiler reads either extension without selecting a different grammar.
+For example, save `main() { s = [1, 2]; return #s; }` as `example.sop`, then run:
+
+```bash
+build/src/topc --parse-only example.sop
+echo $?
+```
+
+A printed parse tree and exit status `0` mean the whole file parsed successfully.
+A syntax error produces a diagnostic and a nonzero exit status. Statements must
+be inside a function; a file containing only `s = [1, 2];` is not a whole program.
+`bin/build.sh` recognizes both extensions when compiling supported TOP constructs;
+the extension alone does not add execution support for SOP features.
+
+SOP AST construction and execution are not implemented in this deliverable.
+The normal TOP compiler path diagnoses SOP constructs and directs you to
+`--parse-only`. Existing TOP programs retain their normal compiler workflow,
+except that `for` and `by` are now reserved keywords. See IMPLEMENTATION_PLAN1.md
+for the approved syntax choices and CHANGELOG1.md for implementation evidence.
+
 ```
 OVERVIEW: topc - a TOP to llvm compiler
 

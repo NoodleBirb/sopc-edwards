@@ -6,6 +6,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <string>
 
 //! \brief Lexer error listener for redirecting ANTLR4 errors to ParseError.
 class LexerErrorListener : public antlr4::BaseErrorListener {
@@ -34,12 +35,18 @@ public:
  */
 class FrontEnd {
 public:
+  // Validate a complete program and return its ANTLR tree as text. No AST,
+  // name resolution, type checking, or execution is performed.
+  [[nodiscard]] static std::string parseSyntax(std::istream &stream);
+
   /*! \fn parse
    *  \brief Parse an input stream and return an AST.
    *
    * Parsing can detect errors, which are reported via throw of a ParseError
    * exception.  In the absence of errors, ownership of the generated AST is
    * transfered to the caller.
+   * Valid SOP constructs without AST support throw SemanticError; use
+   * parseSyntax to validate those without entering AST construction.
    * \param stream the input stream holding the program text.
    * \return the generated AST.
    */

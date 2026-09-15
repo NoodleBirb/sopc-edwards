@@ -51,6 +51,9 @@ static cl::OptionCategory
            "Options for controlling the TOP compilation process.");
 static cl::opt<bool> psource("psource", cl::desc("print normalized source"),
                cl::cat(TOPcat));
+static cl::opt<bool> parseOnly(
+    "parse-only", cl::desc("validate syntax and print ANTLR parse tree; skip AST and later phases"),
+    cl::cat(TOPcat));
 static cl::opt<std::string>
   past("past", cl::value_desc("dot|ascii"), cl::ValueOptional,
      cl::desc("print source AST (default format: dot)"),
@@ -359,11 +362,18 @@ void printCallGraphConstraints(ASTProgram *ast, CallGraph *cg, std::ostream &os)
     std::ostringstream text;
     text << "caller " << record.callerName << " call " << *record.call
          << " -> {";
-    bool first = true;
+    // Target sets are pointer-ordered; render names deterministically so
+    // parser allocation changes cannot reorder otherwise identical output.
+    std::vector<std::string> targetNames;
     for (auto *f : record.targets) {
+      targetNames.push_back(f->getName());
+    }
+    std::sort(targetNames.begin(), targetNames.end());
+    bool first = true;
+    for (const auto &name : targetNames) {
       if (!first)
         text << ", ";
-      text << f->getName();
+      text << name;
       first = false;
     }
     text << "}";
@@ -537,6 +547,12 @@ int main(int argc, char *argv[]) {
       disopt.getNumOccurrences() > 0 || emitSan.getNumOccurrences() > 0;
   const bool compileRequested = !hasInspectionRequest || compileFlagsRequested;
 
+  if (parseOnly && (hasInspectionRequest || compileFlagsRequested || wantsConstraint)) {
+    std::cerr << "topc: error: --parse-only cannot be combined with AST, analysis, "
+                 "or compilation options\n";
+    return EXIT_FAILURE;
+  }
+
   loguru::g_preamble = false;
   bool logging = !logfile.getValue().empty();
   if (debug || logging) {
@@ -567,6 +583,10 @@ int main(int argc, char *argv[]) {
    * the underlying pointer, i.e., via a call to get().
    */
   try {
+    if (parseOnly) {
+      std::cout << FrontEnd::parseSyntax(stream) << '\n';
+      return EXIT_SUCCESS;
+    }
     std::shared_ptr<ASTProgram> ast = FrontEnd::parse(stream);
 
     try {
@@ -809,6 +829,10 @@ int main(int argc, char *argv[]) {
       LOG_S(ERROR) << "topc: internal error";	// LCOV_EXCL_LINE
       std::exit(EXIT_FAILURE);			// LCOV_EXCL_LINE
     }
+  } catch (SemanticError &e) {
+    // Unsupported SOP AST construction is diagnosed before later phases.
+    LOG_S(ERROR) << "topc: " << e.what();
+    return EXIT_FAILURE;
   } catch (ParseError &e) {
     LOG_S(ERROR) << "topc: " << e.what();	// LCOV_EXCL_LINE
     LOG_S(ERROR) << "topc: parse error";	// LCOV_EXCL_LINE

@@ -49,7 +49,7 @@ for arg in "$@"; do
     continue
   fi
   case "${arg}" in
-    *.top)
+    *.top|*.sop)
       SOURCE_FILE="${arg}"
       ;;
   esac
@@ -71,14 +71,15 @@ esac
 
 # Only perform link step if bitcode has been generated
 case "$*" in
-  *--help*|*--asm*)
-    # Do nothing if --help or --asm is present
+  *--help*|*--asm*|*--parse-only*)
+    # These modes do not produce bitcode to link.
     ;;
   *)
     if [ -z "${OUTPUT_BC}" ] || [ ! -f "${OUTPUT_BC}" ]; then
       exit 0
     fi
-    exe_name="$(basename "${SOURCE_FILE}" .top)"
+    exe_name="$(basename "${SOURCE_FILE}")"
+    exe_name="${exe_name%.*}"
     "${TOPCLANG}" -w ${SAN_FLAGS} ${SYSROOT_FLAGS} "${OUTPUT_BC}" "${RTLIB}/top_rtlib.bc" -o "${exe_name}"
     ;;
 esac

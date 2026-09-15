@@ -2,6 +2,7 @@
 #include <unordered_set>
 #include "TypeInference.h"
 #include "SymbolTable.h"
+#include <algorithm>
 #include "ASTExpr.h"
 #include "ASTVariableExpr.h"
 #include "PolyTypeConstraintCollectVisitor.h"

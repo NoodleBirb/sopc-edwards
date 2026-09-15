@@ -4,7 +4,7 @@ grammar TOP;
 
 ////////////////////// TOP Programs ////////////////////////// 
 
-program : (typeDecl | function)+
+program : (typeDecl | function)+ EOF
 ;
 
 function : nameDeclaration 
@@ -45,6 +45,9 @@ nameDeclaration : IDENTIFIER ;
 // weeding pass. 
 //
 expr : expr '(' (expr (',' expr)*)? ')' 	#funAppExpr
+     | expr '[' expr ']'                 #indexExpr
+     | expr '[' lower=expr? ':' upper=expr? ']' #sliceExpr
+     | '#' expr                         #lengthExpr
      | '*' expr 				#deRefExpr
      | SUB NUMBER				#negNumber
      | '&' expr					#refExpr
@@ -59,7 +62,12 @@ expr : expr '(' (expr (',' expr)*)? ')' 	#funAppExpr
      | KINPUT					#inputExpr
      | KALLOC expr				#allocExpr
      | '(' expr ')'				#parenExpr
+     | '[' (expr (',' expr)*)? ']'       #sequenceExpr
+     | lambda                           #lambdaExpr
 ;
+
+// A separate rule lets the body consume a full expression, including a lambda.
+lambda : '(' nameDeclaration (',' nameDeclaration)* ')' '=>' body=expr ;
 
 ////////////////////// TOP Statements ////////////////////////// 
 
@@ -69,6 +77,7 @@ expr : expr '(' (expr (',' expr)*)? ')' 	#funAppExpr
 statement : blockStmt
     | assignStmt
     | whileStmt
+    | forStmt
     | ifStmt
     | outputStmt
     | errorStmt
@@ -80,6 +89,14 @@ assignStmt : expr '=' expr ';' ;
 blockStmt : '{' (statement*) '}' ;
 
 whileStmt : KWHILE '(' expr ')' statement ;
+
+// Ranges are local to this header, not general expressions. A step belongs
+// only to an explicit range. Types and binding validity are checked later.
+forStmt : KFOR '(' binding=nameDeclaration ':' forInput ')' blockStmt ;
+forInput
+    : lower=expr '..' upper=expr (KBY step=expr)? #rangeInput
+    | expr                                      #iterableInput
+    ;
 
 ifStmt : KIF '(' expr ')' statement (KELSE statement)? ;
 
@@ -119,6 +136,8 @@ NUMBER : [0-9]+ ;
 KALLOC  : 'alloc' ;
 KINPUT  : 'input' ;
 KWHILE  : 'while' ;
+KFOR    : 'for' ;
+KBY     : 'by' ;
 KIF     : 'if' ;
 KELSE   : 'else' ;
 KVAR    : 'var' ;

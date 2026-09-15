@@ -107,7 +107,15 @@ std::shared_ptr<ASTProgram> ASTBuilder::build(TOPParser::ProgramContext *ctx) {
   }
 
   auto prog = std::make_shared<ASTProgram>(pTypedecls, pFunctions);
-  prog->setName(generateSHA256(ctx->getText()));
+  // EOF is a parser boundary, not source text. Preserve TOP's existing program
+  // identity now that the start rule explicitly consumes this terminal.
+  std::string sourceText;
+  for (auto *child : ctx->children) {
+    if (child != ctx->EOF()) {
+      sourceText += child->getText();
+    }
+  }
+  prog->setName(generateSHA256(sourceText));
   return prog;
 }
 
