@@ -1,0 +1,16 @@
+// Parse with: build/src/topc --parse-only programs/sequence_forms.sop
+// Demonstrates literals, expression elements, nesting, and chained indexing.
+main() {
+    var values, empty, singleton, nested, first, cell, count;
+
+    values = [1, 2*2, 3];
+    empty = [];
+    singleton = [5*3];
+    nested = [[1, 2], [1, 3]];
+
+    first = values[0];
+    cell = nested[0][1];
+    count = #values;
+
+    return count;
+}

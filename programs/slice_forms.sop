@@ -1,0 +1,19 @@
+// Parse with: build/src/topc --parse-only programs/slice_forms.sop
+// Demonstrates both slice bounds, omitted bounds, and length expressions.
+main() {
+    var values, nested, middle, tail, head, whole, row, count;
+
+    values = [1, 2, 3, 4];
+    nested = [[1, 2], [3, 4]];
+
+    middle = values[1+1:3];
+    tail = values[1:];
+    head = values[:2];
+    whole = values[:];
+    row = nested[0][:1];
+
+    whole = values[:#values];
+    count = #(values[1:3]);
+
+    return count;
+}

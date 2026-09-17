@@ -1,0 +1,27 @@
+// Parse with: build/src/topc --parse-only programs/iteration_forms.sop
+// Demonstrates explicit ranges, expression steps, and iterable inputs.
+min() {
+    return 0;
+}
+
+max() {
+    return 6;
+}
+
+main() {
+    var s, x, y;
+    s = [1, 2, 3];
+    x = 0;
+    y = 2;
+
+    for (i : 0 .. 2) { x = i; }
+    for (i : s) { x = i; }
+    // A step is allowed on iterable input as well as an explicit range.
+    for (i : s by y) { x = i; }
+    for (i : &s) { x = i; }
+    for (i : min() .. max() by 5 - 3) { x = i; }
+    for (i : 2 + 3 .. 5 + 6 by -1) { x = i; }
+
+    // Parsing does not check whether the endpoints and step make progress.
+    return x;
+}

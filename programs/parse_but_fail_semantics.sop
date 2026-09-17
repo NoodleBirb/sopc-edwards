@@ -1,0 +1,11 @@
+main () {
+    var s1, z;
+    
+    s1 = 5;
+
+    for (i : s1) {
+        z = i;
+    }
+
+    return 0;
+}
