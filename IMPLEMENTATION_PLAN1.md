@@ -1,5 +1,11 @@
 # Deliverable 1 implementation plan — approved D1–D5
 
+**2026-09-17 revision:** The user replaced the assistant-selected SOP tests with
+only their REQUIREMENTS1.md Test Cases section. D3 is superseded: iterable inputs
+now allow a single `by` clause, as explicitly accepted by the user's new test.
+The prior test plan and counts below are historical. See TEST_DOCUMENTATION1.md
+for the current six cases (29 fragments); new tests require user approval.
+
 This is an assistant-authored implementation plan, not a replacement for the student's REQUIREMENTS1.md. The user approved D1–D5 on 2026-09-15. Implementation proceeds for the three supplied catalog sections; completeness against any unseen sections remains unverified.
 
 Completion: the approved three-feature scope is implemented and validated. All 494 CTest tests and 154 system tests pass. See CHANGELOG1.md for actual changes, intermediate failures, fixes, and commands. The parser-only option prints the parse tree; normal SOP compilation reports the phase limitation.

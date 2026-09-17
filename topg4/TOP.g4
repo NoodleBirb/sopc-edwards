@@ -90,12 +90,12 @@ blockStmt : '{' (statement*) '}' ;
 
 whileStmt : KWHILE '(' expr ')' statement ;
 
-// Ranges are local to this header, not general expressions. A step belongs
-// only to an explicit range. Types and binding validity are checked later.
+// Ranges are local to this header, not general expressions. Both range and
+// iterable inputs allow one step clause. Types are checked in later phases.
 forStmt : KFOR '(' binding=nameDeclaration ':' forInput ')' blockStmt ;
 forInput
     : lower=expr '..' upper=expr (KBY step=expr)? #rangeInput
-    | expr                                      #iterableInput
+    | expr (KBY step=expr)?                      #iterableInput
     ;
 
 ifStmt : KIF '(' expr ')' statement (KELSE statement)? ;

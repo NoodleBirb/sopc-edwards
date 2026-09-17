@@ -1,5 +1,9 @@
 # Deliverable 1 change log
 
+Current test policy (2026-09-17): only user-authored REQUIREMENTS1.md cases are
+used for the new SOP suite. Earlier assistant-added tests described below were
+removed in T003; their records and counts remain as history.
+
 Assistant-authored record. REQUIREMENTS1.md remains student-authored.
 
 ## P001 — Preparation for user review (2026-09-15)
@@ -131,3 +135,16 @@ Scope and limits: the three supplied catalog sections are covered; unseen PDF se
 - Changed bin/build.sh to recognize `.sop` alongside `.top` and strip either extension for executable names. Added `--parse-only` to modes that skip linking so stale bitcode cannot be linked after a syntax-only invocation. This helper still requires its existing compiler/runtime environment; direct `topc --parse-only` is the recommended syntax check.
 - Validation recorded below.
 - Validation: `bash -n bin/build.sh` passed; `ctest --test-dir build -R '^sop_parser_cli$' --output-on-failure` passed with `.sop` fixtures. Ad hoc checks compiled and linked a TOP-compatible program with each extension, confirmed executable naming, and verified `--parse-only` skipped invalid stale bitcode. Those checks used temporary files and are documented in TEST_DOCUMENTATION1.md. `git diff --check` passed.
+
+## T003 — Replace assistant-selected tests with the user's cases (2026-09-17)
+
+- User explicitly requested removal of all assistant-added tests and replacement with their updated REQUIREMENTS1.md Test Cases section. Further test suggestions require their agreement before addition.
+- Replaced all 15 prior cases in test/unit/frontend/SOPParserTest.cpp with six cases containing exactly the user's 29 fragments. The sole correction is an added semicolon on accepted `x4 = s1[1+1:3]`, explicitly approved by the user for the fixture only.
+- Deleted test/system/sop-parser-cli.cmake and removed its registration from test/CMakeLists.txt. Removed all prior assistant-selected structural, API, and additional boundary assertions. Original TOP tests and the runner's runtime-location fix remain unchanged.
+- Updated topg4/TOP.g4 to allow an optional single `by` clause on iterable input, required by the user's accepted `for (i : s by y) { x = i; }`. This supersedes D3; it does not change the existing single-step restriction.
+- Replaced TEST_DOCUMENTATION1.md with an exact inventory of the current cases and commands. Documented that the rejected block-lambda fragment also lacks a semicolon, so it does not isolate the block-body restriction. No unapproved additional case was added.
+- Added a revision notice to IMPLEMENTATION_PLAN1.md and this log so superseded decisions/counts are not mistaken for the current suite.
+- REQUIREMENTS1.md and the user's changes to programs/forloops.sop and programs/sequences.sop were left untouched. The earlier request for four additional example files was superseded before those files were created.
+- Validation results follow below.
+- Validation: build succeeded; `[requirements]` passed all 29 assertions in six cases; full CTest passed 484/484; existing system suite passed 154/154 outside the sandbox. An inventory comparison confirmed the fixtures exactly match all user cases except the approved semicolon correction.
+- Whitespace review: `git diff --check` reported only a pre-existing user edit (trailing whitespace in REQUIREMENTS1.md), which was left untouched. The assistant's changed files pass the check.

@@ -2,20 +2,48 @@ The requirements of Deliverable #1 are simple; improve the parsing tree to accou
 
 ## 1. Sequences
 These are similar to lists, and may contain expressions as defined in the grammar, and even other sequences.
-A possible configuration of a sequence may be:
+
+
+A possible configuration of a sequence may be: 
+
+
 `s = [1, 2*2, 3];`
+
+
 Each value of a sequence is separated by a comma, and there must always be an expression of some kind on either side of the comma. Sequences without a comma may contain either one or zero expressions:
+
+
 `s = []; s = [1];`
+
+
 Sequences may also contain sequences inside of them.
 Sequences also have specific syntax usages outside of creation. A sequence should be able to be indexed by the following syntax:
+
+
 `x = s[a]; x = s[a + b];`
+
+
 To account for the possibility of a sequence in a sequence, multiple index calls can be chained together as follows:
+
+
 `x = s[0][1];`
+
+
 The length of a sequence should also be accessible with the following prefix operation:
+
+
 `x = #s;`
+
+
 Slices, or subsequences, should also be allowed:
+
+
 `x = s[a:b]; x = s[a:]; x = s[:b]; x = s[:]; x = s[a + b:c];`
+
+
 However, slices should only take up to two operands, with the omission meaning it extends all the way in the omitted direction. Adding more colons does not add more operands and should be treated as a parse error, such as:
+
+
 `x = s[1:2:3];`
 
 When something passes the parse check, it Accepts and builds a parse structure, otherwise it Rejects and creates a parse error.
@@ -25,7 +53,7 @@ Currently, TOP only implements while loops, so in order to implement for loops, 
 
 The main structure of a for loop is as follows:
 
-`for (i : range by x) { x = i; }`
+`for (i : range by x) { z = i; }`
 
 `for` is the keyword that denotes that an iteration is going to begin. The first argument inside the parentheses of an iterator must always be a single variable label. Afterwards must be a colon followed by what the range is going to be. After the range, there is an optional "by" keyword that may be allowed, which must then be followed by a single expression. Following the parentheses, or loop declaration, it must have curly braces denoting the function body. Assuming the function body is parseable, following these rules, the parser Accepts and builds a parse structure.
 
@@ -57,3 +85,60 @@ If following the lambda arrow is not an expression, it Rejects and throws a pars
 `f = (x) => { return x; };`
 
 is not allowed.
+
+
+# Test Cases
+
+##  Sequences
+```
+// Accepts
+s1 = [1, 2, 3];
+s2 = [];
+s3 = [5*3];
+s4 = [[1, 2], [1, 3]];
+
+x1 = #s1;
+x2 = s1[0];
+x3 = s1[1:];
+x4 = s1[1+1:3]
+x5 = s3[:];
+x6 = s4[0][:1];
+```
+```
+// Rejects
+s1 = [1, ];
+s2 = [,];
+
+x1 = s1#;
+x2 = s1[0:1:2];
+```
+
+## Ranges & Iterations
+```
+// Accepts
+for (i : 0 .. 2) { x = i; }
+for (i : s) { x = i; }
+for (i : s by y) { x = i; }
+for (i : &s) { x = i; }
+for (i : min() .. max() by 5 - 3) { x = i; }
+for (i : 2 + 3 .. 5 + 6 by -1) { x = i; }
+```
+```
+// Rejects
+for (i) { x = i; }
+for (i : 0 .. 2 by 1 by 1) { x = i; }
+x = 1 .. 4;
+```
+## Lambdas
+```
+// Accepts
+f = (x) => x + 1;
+g = (x, y) => f(x) + y;
+h = (x) => (y) => x + y;
+```
+```
+// Rejects
+f = () => 5;
+f = (x) => { return x; }
+f = (x, ) => x + 1;
+```
