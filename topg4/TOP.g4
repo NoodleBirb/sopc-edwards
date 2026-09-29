@@ -44,9 +44,11 @@ nameDeclaration : IDENTIFIER ;
 // issues elsewhere in the compiler, e.g.,  introducing an assignable expr
 // weeding pass. 
 //
-expr : expr '(' (expr (',' expr)*)? ')' 	#funAppExpr
+expr : lambda                           #lambdaExpr
+     | expr '(' (expr (',' expr)*)? ')' 	#funAppExpr
      | expr '[' expr ']'                 #indexExpr
      | expr '[' lower=expr? ':' upper=expr? ']' #sliceExpr
+     | '[' (expr (',' expr)*)? ']'       #sequenceExpr
      | '#' expr                         #lengthExpr
      | '*' expr 				#deRefExpr
      | SUB NUMBER				#negNumber
@@ -62,8 +64,8 @@ expr : expr '(' (expr (',' expr)*)? ')' 	#funAppExpr
      | KINPUT					#inputExpr
      | KALLOC expr				#allocExpr
      | '(' expr ')'				#parenExpr
-     | '[' (expr (',' expr)*)? ']'       #sequenceExpr
-     | lambda                           #lambdaExpr
+    
+     
 ;
 
 // A separate rule lets the body consume a full expression, including a lambda.
