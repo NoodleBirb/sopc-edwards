@@ -111,47 +111,49 @@ R22. Expression children shall preserve their own printing rules.
 Tests: T21
 ## Sequences
 R23. The element list shall be enclosed in brackets.
-Tests:
+Tests: T22
 R24. If there are more than one expression in a sequence, each expression shall be separated by a comma and one space after the comma.
 Tests:
 R25. Slice expressions shall have no whitespace between the `:` and the expressions to its side.
-Tests:
+Tests: T24
 R26. The Slice expression's bounds and colon shall be surrounded by brackets, with the previous expression touching the opening bracket on its left.
-Tests:
+Tests: T25, T26
 R27. Empty Slice expression bounds shall have nothing printed.
-Tests:
+Tests: T27
 R28. The SeqLength expression shall remove parentheses around Slice expressions if present.
-Tests:
+Tests: T28
 R29. The SeqLength expression shall append a `#` to the front of the expression it contains.
-Tests:
-R30. The Index expression shall have the sequence at the front, touching brackets enclosing the `index` expression.
+Tests: T29
+R30. The Index expression shall have first expression at the front, touching brackets enclosing the `index` expression.
+Tests: T30
 ## Lambdas
 R31. Lambda parameters shall be enclosed in parentheses, with each parameter separated by a comma and a single space after the comma.
-Tests:
+Tests: T31
 R32. Between the lambda parameters and the body, there shall be a `=>` with a space on both sides.
-
+Tests: T32
 ## Ranges and Iteration
 R33. The right side of the iterator in a ForLoop shall be a colon with a single space on each side.
-Tests:
+Tests: T33
 R34. Ranges shall have a `..` symbol with a space on both sides separating the start and end expressions.
-Tests:
+Tests: T34
 R35. ForLoops shall enclose the iterator through the `by` in parentheses. If the by is not present, instead enclose through the range.
-Tests:
+Tests: T35
 R36. Before the enclosing parentheses, the `for` keyword shall be written with a space in between.
-Tests:
+Tests: T36
 R37. If the `by` is present, it shall have a space on its left and right and the word `by` separating the range and `by` expression.
-Tests:
+Tests: T37
 R38. The ForLoop body shall be enclosed in curly braces on new lines, with the body statements containing two spaces before them, including any previous spaces from nesting. Each statement shall also contain a new line separating them.
-Tests:
+Tests: T38
 
 # Symbols and Scopes
 R39. Duplicate name declarations within a Lambda parameter list shall result in a symbol error.
-Tests:
+Tests: T39
 R40. Lambda parameter declarations shall be scoped inside of the Lambda, and become unavailable outside of its scope.
-Tests:
+Tests: T40
 R41. The ForLoop binder shall have been an existing var belonging to the enclosing function, else it shall result in a symbol error.
+Tests: T41
 R42. The ForLoop shall not introduce new declarations or scope.
-Tests:
+Tests: T41
 R43. The --psym argument shall separate Lambdas from functions, and have its own output for lambda params. --psym shall have the following structure:
 ```
 // Illustrated example of how a Lambda may be filled in.
@@ -162,7 +164,7 @@ Params for lambda (a, b) => (a + b) @3:8 : {a, b}
 // omitted if there are no Lambdas
 ```
 Each Lambda shall be entered into the Lambdas section as normalized source text followed by a space and the saved line and column in the format `@l:c`.
-
+Tests: T42
 # Weeding
 R44. The following shall not be assignable: 
 - SeqLength
@@ -171,21 +173,21 @@ R44. The following shall not be assignable:
 - Lambda
 - Sequence
 Attempts to assign to these shall result in an Assignment Error.
-Tests:
+Tests: T43
 R45. The following shall be Borrowable:
 - Index
 Attempts to borrow any other new constructs will result in an Address of Error.
-Tests:
+Tests: T44
 
 # Phase Boundaries and Compatibility
 R46. Type-checking shall be pushed to later stages.
-Tests:
+Tests: T45
 R47. Ownership shall be pushed to later stages.
-Tests:
+Tests: None
 R48. Lowering shall be pushed to later stages.
-Tests:
+Tests: None
 R49. Code Generation shall be pushed to later stages.
-Tests:
+Tests: None
 
 # Tests
 T1. Build an AST and traverse over it. Denote the size of the AST, and check if it traversed over the same number of Unique Nodes. Run twice to ensure deterministic behavior.
@@ -203,9 +205,33 @@ T12. Attempt creating a Lambda with proper structure and show it matches an expe
 T13. Attempt creating a Range with an expression on both sides, and show it matches an expected AST structure.
 T14. Attempt creating a ForLoop with a Range, a ForLoop with an expr, a ForLoop with a by, and a ForLoop without a by. Show that all match an expected AST structure.
 T15. Create an AST structure for all new constructs, and traverse starting from the source of the node. Ensure it visits every child in the source order.
-T16. Create a Slice missing the lower_bound, missing the upper_bound, and missing both, and try traversing the AST structure. For every omitted section, skip it.
-T17. Create a ForLoop with the `by`, and without the `by`. Try traversing the AST structures outputted, and show that without the `by`, that is skipped in the traversal.
+T16. Create a Slice missing the lower_bound, missing the upper_bound, and missing both, and try traversing the AST structure. For every omitted section, don't visit it, and proceed as normal.
+T17. Create a ForLoop with the `by`, and without the `by`. Try traversing the AST structures outputted, and show that without the `by`, it isn't visited and it proceeds as normal.
 T18. Create a sequence with a lambda, another sequence, and a random expression nested inside. Traverse the resulting AST and ensure it follows post-order traversal correctly by matching it to an expected output.
-T19. Parse a sample program and run it through the FrontEnd and Pretty Print the outputted AST. Run this outputted AST through the parser and FrontEnd again, and confirm the Pretty Print output is the same, and the AST structure is the same.
+T19. Parse a sample program and run it through the FrontEnd and Pretty Print the outputted AST. Run this printed text through the parser and FrontEnd again, and confirm the Pretty Print output is the same, and the AST structure is the same.
 T20. Gather every binary operator in a small program, parse, construct an AST, and then pretty print it, and confirm that each usage is surrounded by parentheses and spaced correctly.
-T21. Nest a binary operator, and a length operator formatted as `#(s[])`, and show that both follow their own pretty printing rules inside of the sequence.
+T21. Nest a binary operator, and a length operator formatted as `#(s[:])`, and show that both follow their own pretty printing rules inside of the sequence.
+T22. Create a sequence, parse, and construct an AST. Show the pretty printed output containing brackets around the element list for Sequences with 0, 1, or 2 elements.
+T23. Create a sequence with three elements, parse, and construct an AST. Show the pretty printed output containing commas separating each element with a space following.
+T24. Create a slice expression with only lower_bound, only upper_bound, both, or none, parse, build an AST, and show the pretty printed output containing no whitespace within the brackets, outside of individual expressions' personal rules.
+T25. Create a slice expression with only lower_bound, only upper_bound, both, or none, parse, build an AST, and show the pretty printed output containing brackets enclosing everything to the right of the first expression.
+T26. Create a slice expression with its first expression as a slice expression, parse, build an AST, and show the pretty printed output having two sets of brackets side by side.
+T27. Create a slice expression with no bounds, and show that it prints as `s[:]`, where s is the chosen name of the first expression.
+T28. Create a SeqLength expression and place it onto a Slice expression with parentheses surrounding it, such as `#(s[:])`. Parse, build an AST, and show the pretty printed output as removing the redundant parentheses.
+T29. Create a SeqLength expression, parse it, and create an AST. Show that the pretty printed output contains a `#` at the front of the expression.
+T30. Create an Index expression, parse it, build an AST, and show the pretty printed output containing brackets enclosing the index expression.
+T31. Create a Lambda with one parameter, and another with two parameters, parse it, and build an AST. Show that in the pretty printed output, each parameter is separated by a comma, and a single space after the comma.
+T32. Create a Lambda, parse it, and build an AST. Show that in the pretty printed output, there is a `=>` between the parameters and the body, and that there is a single space on both sides.
+T33. Create a ForLoop expression. Parse it, build an AST, and show that in the pretty printed output a colon is between the iterator and the range with a single space on both sides of the colon.
+T34. Create a ForLoop expression, and populate it with a Range, parse it, and build an AST. Show that the pretty printed outputted Ranges start and end values are separated by `..` and a single space on both sides.
+T35. Create a ForLoop expression with the by, and a ForLoop expression without the by. Parse it, build an AST, and show that the pretty printed output parentheses encloses through the by if present, and through the range if not present.
+T36. Create a ForLoop expression. Parse it, build an AST, and show that the pretty printed output has the keyword `for` to the left of the parentheses, and with a space between it and the parentheses.
+T37. Create a ForLoop expression with the by, parse it, and build an AST. Show that the pretty printed output has the `by` keyword with a space on both sides, separating the range on the left, and the `by` expression on the right.
+T38. Create a ForLoop expression with the by, parse it, and build an AST. Show that the pretty printed output has the body enclosed in curly braces on new lines, and the body statements are indented by two spaces on top of whatever the current indentation level is.
+T39. Create a Lambda with arguments `(a, a)`, and show that it causes a symbol-processing error.
+T40. Create a mini SOP program that has a Lambda with the argument `(a)`, and show that an attempt to use `a` outside of the Lambda results in a symbol error.
+T41. Do not declare a var `i`, then try creating a ForLoop with the binder as `i`, and show that it throws a symbol error.
+T42. Create an example script that contains several Lambda functions. Show that the --psym argument matches the Illustrated Example in R43, with the Lambdas appearing under their own lambda instead of enclosing-function locals.
+T43. Show that attempting to run an assignment expression as if SeqLength, Slice, Index, Lambda, and Sequence are Left-values will result in an Assignment Error.
+T44. Show that attempting to Borrow an Index expression and using it as a Left-value in an assignment expression will succeed, but borrowing any of the other new constructs and attempting to use them in the same way will result in an Address Of Error.
+T45. Try slicing a random expression, such as `(3 + 1)`, and show that it creates an AST correctly.
