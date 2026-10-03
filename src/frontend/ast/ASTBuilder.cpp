@@ -504,7 +504,8 @@ Any ASTBuilder::visitTypeDecl(TOPParser::TypeDeclContext *ctx) {
   return "";
 }
 
-Any ASTBuilder::visitSumCtorExprWithArgs(TOPParser::SumCtorExprWithArgsContext *ctx) {
+Any ASTBuilder::visitSumCtorExprWithArgs(
+    TOPParser::SumCtorExprWithArgsContext *ctx) {
   std::string tag = ctx->CONID()->getText();
   std::vector<std::shared_ptr<ASTExpr>> args;
   for (auto *argCtx : ctx->expr()) {
@@ -520,9 +521,11 @@ Any ASTBuilder::visitSumCtorExprWithArgs(TOPParser::SumCtorExprWithArgsContext *
   return "";
 } // LCOV_EXCL_LINE
 
-Any ASTBuilder::visitSumCtorExprNoArgs(TOPParser::SumCtorExprNoArgsContext *ctx) {
+Any ASTBuilder::visitSumCtorExprNoArgs(
+    TOPParser::SumCtorExprNoArgsContext *ctx) {
   std::string tag = ctx->CONID()->getText();
-  visitedExpr = std::make_shared<ASTSumCtorExpr>(tag, std::vector<std::shared_ptr<ASTExpr>>{});
+  visitedExpr = std::make_shared<ASTSumCtorExpr>(
+      tag, std::vector<std::shared_ptr<ASTExpr>>{});
 
   LOG_S(1) << "Built AST node " << *visitedExpr;
 
@@ -542,14 +545,15 @@ Any ASTBuilder::visitPattern(TOPParser::PatternContext *ctx) {
       visit(sub);
       subs.push_back(visitedPattern);
     }
-    visitedPattern = std::make_shared<ASTCtorPattern>(
-        ctx->CONID()->getText(), std::move(subs));
+    visitedPattern = std::make_shared<ASTCtorPattern>(ctx->CONID()->getText(),
+                                                      std::move(subs));
   } else {
     // Variable pattern: single IDENTIFIER
     auto id = ctx->IDENTIFIER();
     auto decl = std::make_shared<ASTDeclNode>(id->getText());
-    decl->setLocation(static_cast<int>(id->getSymbol()->getLine()),
-                      static_cast<int>(id->getSymbol()->getCharPositionInLine()));
+    decl->setLocation(
+        static_cast<int>(id->getSymbol()->getLine()),
+        static_cast<int>(id->getSymbol()->getCharPositionInLine()));
     visitedPattern = std::make_shared<ASTVarPattern>(decl);
   }
   return "";
@@ -605,4 +609,97 @@ std::string ASTBuilder::generateSHA256(std::string tohash) {
   std::vector<unsigned char> hash(picosha2::k_digest_size);
   picosha2::hash256(tohash.begin(), tohash.end(), hash.begin(), hash.end());
   return picosha2::bytes_to_hex_string(hash.begin(), hash.end());
+}
+
+namespace {
+template <class T> void locate(T *node, antlr4::ParserRuleContext *ctx) {
+  node->setLocation(ctx->getStart()->getLine(),
+                    ctx->getStart()->getCharPositionInLine());
+}
+} // namespace
+Any ASTBuilder::visitSequenceExpr(TOPParser::SequenceExprContext *ctx) {
+  std::vector<std::shared_ptr<ASTExpr>> elements;
+  for (auto *expr : ctx->expr()) {
+    visit(expr);
+    elements.push_back(visitedExpr);
+  }
+  visitedExpr = std::make_shared<ASTSequenceExpr>(elements);
+  locate(visitedExpr.get(), ctx);
+  return "";
+}
+Any ASTBuilder::visitIndexExpr(TOPParser::IndexExprContext *ctx) {
+  visit(ctx->expr(0));
+  auto sequence = visitedExpr;
+  visit(ctx->expr(1));
+  auto index = visitedExpr;
+  visitedExpr = std::make_shared<ASTIndexExpr>(sequence, index);
+  locate(visitedExpr.get(), ctx);
+  return "";
+}
+Any ASTBuilder::visitSliceExpr(TOPParser::SliceExprContext *ctx) {
+  visit(ctx->expr(0));
+  auto sequence = visitedExpr;
+  std::shared_ptr<ASTExpr> lower, upper;
+  if (ctx->lower) {
+    visit(ctx->lower);
+    lower = visitedExpr;
+  }
+  if (ctx->upper) {
+    visit(ctx->upper);
+    upper = visitedExpr;
+  }
+  visitedExpr = std::make_shared<ASTSliceExpr>(sequence, lower, upper);
+  locate(visitedExpr.get(), ctx);
+  return "";
+}
+Any ASTBuilder::visitLengthExpr(TOPParser::LengthExprContext *ctx) {
+  visit(ctx->expr());
+  visitedExpr = std::make_shared<ASTLengthExpr>(visitedExpr);
+  locate(visitedExpr.get(), ctx);
+  return "";
+}
+Any ASTBuilder::visitLambdaExpr(TOPParser::LambdaExprContext *ctx) {
+  auto *lambda = ctx->lambda();
+  std::vector<std::shared_ptr<ASTDeclNode>> parameters;
+  for (auto *param : lambda->nameDeclaration()) {
+    visit(param);
+    parameters.push_back(visitedDeclNode);
+  }
+  visit(lambda->body);
+  visitedExpr = std::make_shared<ASTLambdaExpr>(parameters, visitedExpr);
+  locate(visitedExpr.get(), ctx);
+  return "";
+}
+Any ASTBuilder::visitForStmt(TOPParser::ForStmtContext *ctx) {
+  auto binder = std::make_shared<ASTVariableExpr>(ctx->binding->getText());
+  locate(binder.get(), ctx->binding);
+  std::shared_ptr<ASTNode> input;
+  std::shared_ptr<ASTExpr> step;
+  if (auto *range =
+          dynamic_cast<TOPParser::RangeInputContext *>(ctx->forInput())) {
+    visit(range->lower);
+    auto lower = visitedExpr;
+    visit(range->upper);
+    auto upper = visitedExpr;
+    input = std::make_shared<ASTRange>(lower, upper);
+    locate(input.get(), range);
+    if (range->step) {
+      visit(range->step);
+      step = visitedExpr;
+    }
+  } else {
+    auto *iterable =
+        dynamic_cast<TOPParser::IterableInputContext *>(ctx->forInput());
+    visit(iterable->expr(0));
+    input = visitedExpr;
+    if (iterable->step) {
+      visit(iterable->step);
+      step = visitedExpr;
+    }
+  }
+  visit(ctx->blockStmt());
+  auto body = std::dynamic_pointer_cast<ASTBlockStmt>(visitedStmt);
+  visitedStmt = std::make_shared<ASTForStmt>(binder, input, step, body);
+  locate(visitedStmt.get(), ctx);
+  return "";
 }

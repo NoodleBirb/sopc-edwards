@@ -39,6 +39,13 @@ public:
    */
   template <typename T> void visitBinaryExpr(T *ctx, const std::string &op);
 
+  Any visitSequenceExpr(TOPParser::SequenceExprContext *ctx) override;
+  Any visitSliceExpr(TOPParser::SliceExprContext *ctx) override;
+  Any visitIndexExpr(TOPParser::IndexExprContext *ctx) override;
+  Any visitLengthExpr(TOPParser::LengthExprContext *ctx) override;
+  Any visitLambdaExpr(TOPParser::LambdaExprContext *ctx) override;
+  Any visitForStmt(TOPParser::ForStmtContext *ctx) override;
+
   Any visitFunction(TOPParser::FunctionContext *ctx) override;
   Any visitNegNumber(TOPParser::NegNumberContext *ctx) override;
   Any visitAdditiveExpr(TOPParser::AdditiveExprContext *ctx) override;
@@ -70,6 +77,7 @@ public:
   Any visitCaseStmt(TOPParser::CaseStmtContext *ctx) override;
   Any visitCaseArm(TOPParser::CaseArmContext *ctx) override;
   Any visitPattern(TOPParser::PatternContext *ctx) override;
-  Any visitSumCtorExprWithArgs(TOPParser::SumCtorExprWithArgsContext *ctx) override;
+  Any visitSumCtorExprWithArgs(
+      TOPParser::SumCtorExprWithArgsContext *ctx) override;
   Any visitSumCtorExprNoArgs(TOPParser::SumCtorExprNoArgsContext *ctx) override;
 };

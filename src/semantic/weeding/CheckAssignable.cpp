@@ -1,7 +1,7 @@
 #include "CheckAssignable.h"
+#include "../SemanticLogging.h"
 #include "PrettyPrinter.h"
 #include "SemanticError.h"
-#include "../SemanticLogging.h"
 
 #include <sstream>
 
@@ -37,7 +37,8 @@ void CheckAssignable::endVisit(ASTAssignStmt *element) {
 void CheckAssignable::endVisit(ASTBorrowExpr *element) {
   SEMANTIC_LOG(3, "assignability") << "borrow=" << *element;
 
-  if (isAssignable(element->getVar()))
+  if (isAssignable(element->getVar()) ||
+      dynamic_cast<ASTIndexExpr *>(element->getVar()))
     return;
 
   std::ostringstream oss;

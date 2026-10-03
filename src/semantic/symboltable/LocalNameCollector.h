@@ -23,9 +23,17 @@ class LocalNameCollector : public ASTVisitor {
   std::string funName;
   bool first = true;
   // Scoping stacks for lexically-scoped constructs
-  std::set<std::string> caseArmBindingNames;     // names bound by any case arm (may be overwritten)
+  std::set<std::string>
+      caseArmBindingNames; // names bound by any case arm (may be overwritten)
+
+  std::set<ASTDeclNode *> variableDeclarations;
 
 public:
+  std::vector<ASTLambdaExpr *> lambdas;
+  std::map<ASTVariableExpr *, ASTDeclNode *> resolutions;
+  bool visit(ASTLambdaExpr *element) override;
+  bool visit(ASTForStmt *element) override;
+  bool visit(ASTDeclStmt *element) override;
   LocalNameCollector(std::map<std::string, std::pair<ASTDeclNode *, bool>> fMap)
       : fMap(fMap) {}
 
@@ -41,7 +49,8 @@ public:
   virtual void endVisit(ASTDeclNode *element) override;
   virtual void endVisit(ASTVariableExpr *element) override;
 
-  // Skip sum type declarations — their DeclNode children are not local variables
+  // Skip sum type declarations — their DeclNode children are not local
+  // variables
   virtual bool visit(ASTSumTypeDecl *element) override { return false; }
 
   // Case arm binding scoping

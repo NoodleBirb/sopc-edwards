@@ -20,15 +20,22 @@ class SymbolTable {
   std::map<std::string, ASTSumTypeDecl *> typeNames;
   std::map<std::string, ASTSumVariant *> constructorNames;
 
+  std::vector<ASTLambdaExpr *> lambdas;
+  std::map<ASTVariableExpr *, ASTDeclNode *> resolutions;
+
 public:
+  const std::vector<ASTLambdaExpr *> &getLambdas() const { return lambdas; }
+  ASTDeclNode *getDeclaration(ASTVariableExpr *use) const {
+    auto found = resolutions.find(use);
+    return found == resolutions.end() ? nullptr : found->second;
+  }
   SymbolTable(
       std::map<std::string, std::pair<ASTDeclNode *, bool>> fMap,
       std::map<ASTDeclNode *, std::map<std::string, ASTDeclNode *>> lMap,
       std::map<std::string, ASTSumTypeDecl *> tMap = {},
       std::map<std::string, ASTSumVariant *> cMap = {})
       : functionNames(std::move(fMap)), localNames(std::move(lMap)),
-        typeNames(std::move(tMap)),
-        constructorNames(std::move(cMap)) {}
+        typeNames(std::move(tMap)), constructorNames(std::move(cMap)) {}
 
   /*! \brief Return the declaration node for a given function name.
    * \param s The Function name
@@ -79,7 +86,8 @@ public:
    */
   std::vector<std::string> getSumTypes();
 
-  /*! \brief Return the sum type declaration that owns the given constructor tag.
+  /*! \brief Return the sum type declaration that owns the given constructor
+   * tag.
    * \param tag The constructor name.
    * \return The ASTSumTypeDecl that declares it, or nullptr if not found.
    */

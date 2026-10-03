@@ -13,6 +13,20 @@ std::string render(const ASTNode &node) {
 }
 
 std::string nodeLabel(ASTNode *node) {
+  if (dynamic_cast<ASTSequenceExpr *>(node))
+    return "SequenceExpr";
+  if (dynamic_cast<ASTSliceExpr *>(node))
+    return "SliceExpr";
+  if (dynamic_cast<ASTIndexExpr *>(node))
+    return "IndexExpr";
+  if (dynamic_cast<ASTLengthExpr *>(node))
+    return "LengthExpr";
+  if (dynamic_cast<ASTLambdaExpr *>(node))
+    return "LambdaExpr";
+  if (dynamic_cast<ASTRange *>(node))
+    return "Range";
+  if (dynamic_cast<ASTForStmt *>(node))
+    return "ForStmt";
   if (dynamic_cast<ASTProgram *>(node))
     return "Program";
   if (auto *function = dynamic_cast<ASTFunction *>(node))
@@ -85,6 +99,30 @@ std::string indexedRole(const std::string &role, std::size_t index) {
 }
 
 std::string childRole(ASTNode *parent, std::size_t index) {
+  if (dynamic_cast<ASTSequenceExpr *>(parent))
+    return indexedRole("element", index);
+  if (auto *slice = dynamic_cast<ASTSliceExpr *>(parent)) {
+    if (index == 0)
+      return "sequence";
+    return index == 1 && slice->getLowerBound() ? "lower-bound" : "upper-bound";
+  }
+  if (dynamic_cast<ASTIndexExpr *>(parent))
+    return index == 0 ? "sequence" : "index";
+  if (dynamic_cast<ASTLengthExpr *>(parent))
+    return "sequence";
+  if (auto *lambda = dynamic_cast<ASTLambdaExpr *>(parent))
+    return index < lambda->getParameters().size()
+               ? indexedRole("parameter", index)
+               : "body";
+  if (dynamic_cast<ASTRange *>(parent))
+    return index == 0 ? "start" : "end";
+  if (auto *loop = dynamic_cast<ASTForStmt *>(parent)) {
+    if (index == 0)
+      return "binder";
+    if (index == 1)
+      return "input";
+    return index == 2 && loop->getStep() ? "step" : "body";
+  }
   if (auto *program = dynamic_cast<ASTProgram *>(parent)) {
     const auto typeCount = program->getTypedecls().size();
     return index < typeCount ? indexedRole("type", index)
@@ -99,8 +137,7 @@ std::string childRole(ASTNode *parent, std::size_t index) {
       return indexedRole("parameter", index - 1);
     if (index <= formalCount + declarationCount)
       return indexedRole("declaration", index - formalCount - 1);
-    return indexedRole("statement",
-                       index - formalCount - declarationCount - 1);
+    return indexedRole("statement", index - formalCount - declarationCount - 1);
   }
   if (dynamic_cast<ASTReturnStmt *>(parent))
     return "value";
@@ -166,7 +203,7 @@ void ASTVisualizer::emitAsciiNode(ASTNode *node, const std::string &prefix,
   if (auto *caseStmt = dynamic_cast<ASTCaseStmt *>(node)) {
     auto arms = caseStmt->getArms();
     emitAsciiNode(caseStmt->getCaseExpr(), nextPrefix, arms.empty(),
-            "case-expression");
+                  "case-expression");
     for (std::size_t i = 0; i < arms.size(); ++i) {
       emitAsciiNode(arms[i], nextPrefix, i + 1 == arms.size(),
                     "arm[" + std::to_string(i) + "]");
@@ -185,8 +222,7 @@ void ASTVisualizer::emitAsciiNode(ASTNode *node, const std::string &prefix,
          << "\n";
       const std::string patternPrefix = nextPrefix + "│   ";
       for (std::size_t i = 0; i < patterns.size(); ++i) {
-        emitAsciiPattern(patterns[i], patternPrefix,
-                         i + 1 == patterns.size(),
+        emitAsciiPattern(patterns[i], patternPrefix, i + 1 == patterns.size(),
                          "payload[" + std::to_string(i) + "]");
       }
     }

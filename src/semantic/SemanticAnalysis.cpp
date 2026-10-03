@@ -1,4 +1,5 @@
 #include "SemanticAnalysis.h"
+#include "ASTSOP.h"
 #include "BorrowChecker.h"
 #include "OwnershipTypeRules.h"
 #include "CheckAssignable.h"
@@ -8,9 +9,12 @@
 #include "DestructionPass.h"
 #include "MoveAnalysis.h"
 #include "OwnershipClassifier.h"
+#include "SemanticError.h"
 #include "SemanticLogging.h"
 
 std::shared_ptr<SemanticAnalysis> SemanticAnalysis::analyze(ASTProgram *ast) {
+  if (containsSOP(ast))
+    throw SemanticError("SOP later-phase analysis is not implemented");
   SEMANTIC_LOG(1, "pipeline") << "start";
   auto symTable = SymbolTable::build(ast);
   CheckAssignable::check(ast);

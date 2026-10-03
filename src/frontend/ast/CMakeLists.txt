@@ -1,7 +1,8 @@
 add_library(ast)
 target_sources(
   ast
-  PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/ASTBuilder.cpp
+  PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/treetypes/ASTSOP.cpp
+          ${CMAKE_CURRENT_SOURCE_DIR}/ASTBuilder.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/ASTBuilder.h
           ${CMAKE_CURRENT_SOURCE_DIR}/ASTVisitor.h
           ${CMAKE_CURRENT_SOURCE_DIR}/SyntaxTree.cpp

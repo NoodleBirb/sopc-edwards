@@ -45,8 +45,8 @@ public:
    * Parsing can detect errors, which are reported via throw of a ParseError
    * exception.  In the absence of errors, ownership of the generated AST is
    * transfered to the caller.
-   * Valid SOP constructs without AST support throw SemanticError; use
-   * parseSyntax to validate those without entering AST construction.
+   * TOP and SOP source constructs are represented directly in the AST.
+   * Symbol processing and structural checks are separate passes.
    * \param stream the input stream holding the program text.
    * \return the generated AST.
    */

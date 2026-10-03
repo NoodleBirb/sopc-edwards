@@ -1,0 +1,6 @@
+Lambdas, Lengths, Ranges, Slices, Indexes, and Sequence Expressions all contain expressions. ForLoops contain a body of Statements, but otherwise contain expressions.
+Optional Slice bounds are represented by a None, which the visitor will know to skip if it encounters it. 
+Lambda parameters are represented in their own enclosed scope, and completely separate from normal declarations, as that was the simplest way to create them.
+I chose to preserve source-location the same way as TOP was implemented, as it seemed simple. Though it may not give as much info as setting the span, this is something I may consider adding in Assignment 5.
+I chose to represent each construct individually. Though I could have represented the range within the ForLoop, I knew the Parser would take care of any issues with that, so having Ranges as its own expression seemed nice for readability reasons.
+One major choice for implementation I made was to allow for omitted expressions. The simplicity it allowed was too nice to pass up for me. It didn't cost too much overhead, and it allows for the compiler to expand even more for the future.

@@ -11,7 +11,8 @@ target_sources(
           ${CMAKE_CURRENT_SOURCE_DIR}/TypeNameCollector.h)
 target_include_directories(
   symboltable
-  PRIVATE ${CMAKE_SOURCE_DIR}/src/frontend/ast
+  PRIVATE ${CMAKE_SOURCE_DIR}/src/frontend/prettyprint
+          ${CMAKE_SOURCE_DIR}/src/frontend/ast
           ${CMAKE_SOURCE_DIR}/src/frontend/ast/treetypes
           ${CMAKE_SOURCE_DIR}/src/error)
-target_link_libraries(symboltable PRIVATE coverage_config)
+target_link_libraries(symboltable PRIVATE coverage_config prettyprint)

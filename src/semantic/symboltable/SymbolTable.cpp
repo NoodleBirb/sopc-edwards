@@ -1,15 +1,18 @@
 #include "SymbolTable.h"
+#include "../SemanticLogging.h"
 #include "FunctionNameCollector.h"
 #include "LocalNameCollector.h"
 #include "TypeNameCollector.h"
-#include "../SemanticLogging.h"
 
+#include "PrettyPrinter.h"
 #include <sstream>
 
 std::shared_ptr<SymbolTable> SymbolTable::build(ASTProgram *p) {
   SEMANTIC_LOG(1, "symbol-table") << "start";
   auto fMap = FunctionNameCollector::build(p);
-  auto lMap = LocalNameCollector::build(p, fMap);
+  LocalNameCollector collector(fMap);
+  p->accept(&collector);
+  auto lMap = collector.lMap;
   auto [tMap, cMap] = TypeNameCollector::build(p);
   std::size_t localCount = 0;
   for (const auto &scope : lMap) {
@@ -18,7 +21,10 @@ std::shared_ptr<SymbolTable> SymbolTable::build(ASTProgram *p) {
   SEMANTIC_LOG(1, "symbol-table")
       << "complete functions=" << fMap.size() << " locals=" << localCount
       << " types=" << tMap.size() << " constructors=" << cMap.size();
-  return std::make_shared<SymbolTable>(fMap, lMap, tMap, cMap);
+  auto result = std::make_shared<SymbolTable>(fMap, lMap, tMap, cMap);
+  result->lambdas = std::move(collector.lambdas);
+  result->resolutions = std::move(collector.resolutions);
+  return result;
 }
 
 ASTDeclNode *SymbolTable::getFunction(std::string s) {
@@ -106,11 +112,34 @@ void SymbolTable::print(std::ostream &s) {
   }
   s << "}\n";
 
+  auto designation = [](ASTLambdaExpr *lambda) {
+    return PrettyPrinter::expression(lambda) + " @" +
+           std::to_string(lambda->getLine()) + ":" +
+           std::to_string(lambda->getColumn());
+  };
+  if (!lambdas.empty()) {
+    s << "Lambdas : {";
+    sep = "";
+    for (auto *lambda : lambdas) {
+      s << sep << designation(lambda);
+      sep = ", ";
+    }
+    s << "}\n";
+  }
   for (const auto &f : localNames) {
     s << "Locals for function " + f.first->getName() + " : {";
     sep = "";
     for (const auto &l : f.second) {
       s << sep << l.first;
+      sep = ", ";
+    }
+    s << "}\n";
+  }
+  for (auto *lambda : lambdas) {
+    s << "Params for lambda " << designation(lambda) << " : {";
+    sep = "";
+    for (auto *param : lambda->getParameters()) {
+      s << sep << param->getName();
       sep = ", ";
     }
     s << "}\n";

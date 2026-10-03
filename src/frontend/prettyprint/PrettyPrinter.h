@@ -25,6 +25,16 @@ public:
   PrettyPrinter(std::ostream &os, char indentChar, int indentSize)
       : os(os), indentChar(indentChar), indentSize(indentSize) {}
 
+  static std::string expression(ASTNode *node);
+  void endVisit(ASTSequenceExpr *element) override;
+  void endVisit(ASTSliceExpr *element) override;
+  void endVisit(ASTIndexExpr *element) override;
+  void endVisit(ASTLengthExpr *element) override;
+  void endVisit(ASTLambdaExpr *element) override;
+  void endVisit(ASTRange *element) override;
+  void endVisit(ASTForStmt *element) override;
+  bool visit(ASTForStmt *element) override;
+
   static void print(ASTProgram *p, std::ostream &os, char c, int n);
 
   virtual void endVisit(ASTProgram *element) override;
@@ -57,7 +67,8 @@ public:
   virtual bool visit(ASTCaseStmt *element) override;
   virtual void endVisit(ASTCaseStmt *element) override;
   virtual void endVisit(ASTCaseArm *element) override;
-  // Synthetic node inserted by DestructionPass — printed as a destroy statement.
+  // Synthetic node inserted by DestructionPass — printed as a destroy
+  // statement.
   virtual bool visit(ASTDestroyStmt *element) override;
   virtual void endVisit(ASTDestroyStmt *element) override;
 

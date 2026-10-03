@@ -15,36 +15,6 @@
 using namespace std;
 using namespace antlr4;
 
-namespace {
-// The inherited AST visitor would otherwise silently visit children of SOP
-// nodes that it does not implement, producing an incomplete or incorrect AST.
-class RequireTOPAst : public TOPBaseVisitor {
-  std::any unsupported() {
-    throw SemanticError("SOP AST construction is not implemented; use --parse-only");
-  }
-
-public:
-  std::any visitSequenceExpr(TOPParser::SequenceExprContext *) override {
-    return unsupported();
-  }
-  std::any visitIndexExpr(TOPParser::IndexExprContext *) override {
-    return unsupported();
-  }
-  std::any visitSliceExpr(TOPParser::SliceExprContext *) override {
-    return unsupported();
-  }
-  std::any visitLengthExpr(TOPParser::LengthExprContext *) override {
-    return unsupported();
-  }
-  std::any visitLambdaExpr(TOPParser::LambdaExprContext *) override {
-    return unsupported();
-  }
-  std::any visitForStmt(TOPParser::ForStmtContext *) override {
-    return unsupported();
-  }
-};
-} // namespace
-
 void LexerErrorListener::syntaxError(Recognizer *recognizer,
                                      Token *offendingSymbol, size_t line,
                                      size_t charPositionInLine,
@@ -97,9 +67,6 @@ std::shared_ptr<ASTProgram> FrontEnd::parse(std::istream &stream) {
   LOG_S(1) << "Parsing program";
 
   TOPParser::ProgramContext *tree = parser.program();
-
-  RequireTOPAst supported;
-  supported.visit(tree);
 
   LOG_S(1) << "Building AST";
 

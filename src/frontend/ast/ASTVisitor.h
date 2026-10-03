@@ -22,6 +22,20 @@
  */
 class ASTVisitor {
 public:
+  virtual bool visit(ASTSequenceExpr *element) { return true; }
+  virtual void endVisit(ASTSequenceExpr *element) {}
+  virtual bool visit(ASTSliceExpr *element) { return true; }
+  virtual void endVisit(ASTSliceExpr *element) {}
+  virtual bool visit(ASTIndexExpr *element) { return true; }
+  virtual void endVisit(ASTIndexExpr *element) {}
+  virtual bool visit(ASTLengthExpr *element) { return true; }
+  virtual void endVisit(ASTLengthExpr *element) {}
+  virtual bool visit(ASTLambdaExpr *element) { return true; }
+  virtual void endVisit(ASTLambdaExpr *element) {}
+  virtual bool visit(ASTRange *element) { return true; }
+  virtual void endVisit(ASTRange *element) {}
+  virtual bool visit(ASTForStmt *element) { return true; }
+  virtual void endVisit(ASTForStmt *element) {}
   virtual bool visit(ASTProgram *element) { return true; }
   virtual void endVisit(ASTProgram *element) {}
   virtual bool visit(ASTFunction *element) { return true; }

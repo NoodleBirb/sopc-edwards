@@ -191,12 +191,18 @@ Use `./bin/runtests.sh -s` for only system tests or `./bin/runtests.sh -u` for o
 
 ## Using topc
 
-For Deliverable 1 SOP syntax (sequences, range/sequence iteration, and lambdas),
-use `build/src/topc --parse-only program.sop` (or the executable in your chosen
-build directory). This validates the entire program and prints its ANTLR parse
-tree. Invalid syntax exits unsuccessfully; names, types, bounds, and other
-semantic properties are not checked. The option cannot be combined with AST,
-analysis, or compilation options.
+For SOP syntax (sequences, range/sequence iteration, and lambdas),
+`build/src/topc --parse-only program.sop` validates syntax and prints the ANTLR
+parse tree. This mode does not check names, types, or other semantic properties.
+
+Deliverable 2 adds AST construction, source printing, visualization, symbol
+processing, and assignment/borrow-target checks. Use `--psource`, `--psym`, or
+`--past=ascii` (also `--past=dot`) to inspect SOP programs. These inspection
+options can be combined. SOP inspection checks declarations and structural
+validity without running type inference or ownership analysis. SOP programs
+cannot yet be compiled or passed to later-phase inspection options such as
+`--ptype`; those requests produce an explicit unsupported-phase diagnostic.
+Existing TOP programs retain their full analysis and compilation pipeline.
 
 Use `.sop` for SOP source files; `.top` remains supported for existing programs.
 The compiler reads either extension without selecting a different grammar.
@@ -213,11 +219,9 @@ be inside a function; a file containing only `s = [1, 2];` is not a whole progra
 `bin/build.sh` recognizes both extensions when compiling supported TOP constructs;
 the extension alone does not add execution support for SOP features.
 
-SOP AST construction and execution are not implemented in this deliverable.
-The normal TOP compiler path diagnoses SOP constructs and directs you to
-`--parse-only`. Existing TOP programs retain their normal compiler workflow,
-except that `for` and `by` are now reserved keywords. See IMPLEMENTATION_PLAN1.md
-for the approved syntax choices and CHANGELOG1.md for implementation evidence.
+`for` and `by` are reserved keywords. See REQUIREMENTS2.md for the front-end
+requirements, IMPLEMENTATION_PLAN1.md for the approved syntax choices, and
+CHANGELOG1.md for the parser implementation evidence.
 
 ```
 OVERVIEW: topc - a TOP to llvm compiler

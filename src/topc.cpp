@@ -1,3 +1,4 @@
+#include "ASTSOP.h"
 #include "CodeGenerator.h"
 #include "FrontEnd.h"
 #include "InternalError.h"
@@ -588,6 +589,11 @@ int main(int argc, char *argv[]) {
       return EXIT_SUCCESS;
     }
     std::shared_ptr<ASTProgram> ast = FrontEnd::parse(stream);
+    const bool sop = containsSOP(ast.get());
+    if (sop && (compileRequested || wantsTypes || wantsCallGraph || wantsCFG ||
+                wantsOwnership || wantsBorrow || wantsConstraint))
+      throw SemanticError("SOP later-phase analysis and code generation are not "
+                          "implemented; use --psource, --past, or --psym");
 
     try {
       std::shared_ptr<SymbolTable> symTable;
@@ -614,7 +620,8 @@ int main(int argc, char *argv[]) {
           return;
         }
         CheckAssignable::check(ast.get());
-        BorrowChecker::check(ast.get());
+        if (!sop)
+          BorrowChecker::check(ast.get());
         CheckSumTypeNames::check(ast.get());
         CheckCaseCompleteness::check(ast.get());
         CheckPatternTypes::check(ast.get());
@@ -699,6 +706,11 @@ int main(int argc, char *argv[]) {
         ownershipChecked = true;
       };
 
+      if (sop) {
+        ensureSymbols();
+        ensureStructuralChecks();
+      }
+
       if (wantsSource) {
         FrontEnd::prettyprint(ast.get(), std::cout);
       }
@@ -718,7 +730,8 @@ int main(int argc, char *argv[]) {
       if (wantsSymbols) {
         ensureSymbols();
         ensureStructuralChecks();
-        ensureCFGs();
+        if (!sop)
+          ensureCFGs();
         symTable->print(std::cout);
       }
 
@@ -830,7 +843,7 @@ int main(int argc, char *argv[]) {
       std::exit(EXIT_FAILURE);			// LCOV_EXCL_LINE
     }
   } catch (SemanticError &e) {
-    // Unsupported SOP AST construction is diagnosed before later phases.
+    // Unsupported SOP later-phase requests are diagnosed before analysis.
     LOG_S(ERROR) << "topc: " << e.what();
     return EXIT_FAILURE;
   } catch (ParseError &e) {

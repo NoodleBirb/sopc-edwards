@@ -38,6 +38,26 @@ static std::string patternToString(ASTPattern *p) {
   return "?"; // unreachable
 }
 
+namespace {
+std::string grouped(ASTExpr *expr, std::string text, bool postfix) {
+  const bool lambda = dynamic_cast<ASTLambdaExpr *>(expr);
+  const bool prefix = dynamic_cast<ASTBorrowExpr *>(expr) ||
+                      dynamic_cast<ASTDeRefExpr *>(expr) ||
+                      dynamic_cast<ASTAllocExpr *>(expr) ||
+                      dynamic_cast<ASTLengthExpr *>(expr);
+  return lambda || (postfix && prefix) ? "(" + text + ")" : text;
+}
+std::vector<std::string> take(std::vector<std::string> &stack, size_t n) {
+  std::vector<std::string> result(stack.end() - n, stack.end());
+  stack.resize(stack.size() - n);
+  return result;
+}
+} // namespace
+std::string PrettyPrinter::expression(ASTNode *node) {
+  PrettyPrinter printer;
+  node->accept(&printer);
+  return printer.visitResults.back();
+}
 void PrettyPrinter::print(ASTProgram *p, std::ostream &os, char c, int n) {
   PrettyPrinter visitor(os, c, n);
   p->accept(&visitor);
@@ -128,8 +148,10 @@ void PrettyPrinter::endVisit(ASTBinaryExpr *element) {
   std::string leftString = visitResults.back();
   visitResults.pop_back();
 
-  visitResults.push_back("(" + leftString + " " + element->getOp() + " " +
-                         rightString + ")");
+  visitResults.push_back("(" + grouped(element->getLeft(), leftString, false) +
+                         " " + element->getOp() + " " +
+                         grouped(element->getRight(), rightString, false) +
+                         ")");
 }
 
 void PrettyPrinter::endVisit(ASTInputExpr *element) {
@@ -139,25 +161,32 @@ void PrettyPrinter::endVisit(ASTInputExpr *element) {
 void PrettyPrinter::endVisit(ASTFunAppExpr *element) {
   auto actualsString =
       joinWithDelim(visitResults, ", ", element->getActuals().size(), 1);
-  visitResults.back() += "(" + actualsString + ")";
+  visitResults.back() =
+      grouped(element->getFunction(), visitResults.back(), true) + "(" +
+      actualsString + ")";
 }
 
 void PrettyPrinter::endVisit(ASTAllocExpr *element) {
   std::string init = visitResults.back();
   visitResults.pop_back();
-  visitResults.push_back("alloc " + init);
+  visitResults.push_back(
+      "alloc " +
+      grouped(dynamic_cast<ASTExpr *>(element->getChildren()[0].get()), init,
+              false));
 }
 
 void PrettyPrinter::endVisit(ASTBorrowExpr *element) {
   std::string var = visitResults.back();
   visitResults.pop_back();
-  visitResults.push_back("&" + var);
+  visitResults.push_back("&" + grouped(element->getVar(), var, false));
 }
 
 void PrettyPrinter::endVisit(ASTDeRefExpr *element) {
   std::string base = visitResults.back();
   visitResults.pop_back();
-  visitResults.push_back("*" + base);
+  visitResults.push_back(
+      "*" + grouped(dynamic_cast<ASTExpr *>(element->getChildren()[0].get()),
+                    base, false));
 }
 
 void PrettyPrinter::endVisit(ASTDeclNode *element) {
@@ -209,7 +238,7 @@ void PrettyPrinter::endVisit(ASTWhileStmt *element) {
 
   indentLevel--;
 
-    std::string whileString =
+  std::string whileString =
       indent() + "while (" + condString + ")\n" + bodyString;
   visitResults.push_back(whileString);
 }
@@ -347,7 +376,63 @@ bool PrettyPrinter::visit(ASTDestroyStmt *element) {
 }
 
 void PrettyPrinter::endVisit(ASTDestroyStmt *element) {
-  // Push a placeholder so endVisit(ASTFunction) pops the right number of results.
-  visitResults.push_back(indent() + "/* destroy " + element->getVar()->getName() + " */");
+  // Push a placeholder so endVisit(ASTFunction) pops the right number of
+  // results.
+  visitResults.push_back(indent() + "/* destroy " +
+                         element->getVar()->getName() + " */");
 }
 
+void PrettyPrinter::endVisit(ASTSequenceExpr *element) {
+  auto children = take(visitResults, element->getElements().size());
+  std::string result = "[", sep;
+  for (auto &child : children) {
+    result += sep + child;
+    sep = ", ";
+  }
+  visitResults.push_back(result + "]");
+}
+void PrettyPrinter::endVisit(ASTSliceExpr *element) {
+  auto c = take(visitResults, element->getChildren().size());
+  size_t i = 1;
+  std::string result = grouped(element->getSequence(), c[0], true) + "[";
+  if (element->getLowerBound())
+    result += c[i++];
+  result += ":";
+  if (element->getUpperBound())
+    result += c[i++];
+  visitResults.push_back(result + "]");
+}
+void PrettyPrinter::endVisit(ASTIndexExpr *element) {
+  auto c = take(visitResults, 2);
+  visitResults.push_back(grouped(element->getSequence(), c[0], true) + "[" +
+                         c[1] + "]");
+}
+void PrettyPrinter::endVisit(ASTLengthExpr *element) {
+  visitResults.back() =
+      "#" + grouped(element->getSequence(), visitResults.back(), false);
+}
+void PrettyPrinter::endVisit(ASTLambdaExpr *element) {
+  auto c = take(visitResults, element->getParameters().size() + 1);
+  std::string result = "(", sep;
+  for (size_t i = 0; i + 1 < c.size(); ++i) {
+    result += sep + c[i];
+    sep = ", ";
+  }
+  visitResults.push_back(result + ") => " + c.back());
+}
+void PrettyPrinter::endVisit(ASTRange *element) {
+  auto c = take(visitResults, 2);
+  visitResults.push_back(c[0] + " .. " + c[1]);
+}
+bool PrettyPrinter::visit(ASTForStmt *element) {
+  ++indentLevel;
+  return true;
+}
+void PrettyPrinter::endVisit(ASTForStmt *element) {
+  auto c = take(visitResults, element->getChildren().size());
+  --indentLevel;
+  std::string result = indent() + "for (" + c[0] + " : " + c[1];
+  if (element->getStep())
+    result += " by " + c[2];
+  visitResults.push_back(result + ")\n" + c.back());
+}
