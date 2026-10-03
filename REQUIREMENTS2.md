@@ -5,19 +5,20 @@ R1. A previous parse pass shall have occurred and a resulting Parse Structure sh
 Refer to REQUIREMENTS1.md Tests.
 
 # AST Construction
-R2. All ASTs built shall guarantee that every child is reachable, and every child shall preserve the child-expression structure. Child order shall be deterministic, and shall guarantee have post-order visitor support.
-Tests: 
-R3. --past shall support the new AST constructs, with child nesting following the same patterns already built into TOP.
-Tests:
-R4. Each AST Node shall preserve the starting location as the starting line and column of the original source, starting at line 1 and column 0.
-Tests:
-R5. A parent AST Node shall preserve the children nodes while needed by the AST.
-Tests:
-R6. A parent AST Node shall allow access to the children nodes.
-Tests:
-R7. An AST Node shall be built as a class that follows the structures defined in the rest of the requirements.
-Tests:
-R8. The AST shall be built following the Parse Structure.
+R2. The AST shall be built following the Parse Structure.
+Tests: T7
+R3. All ASTs built shall guarantee that every child is reachable, and every child shall preserve the child-expression structure. Child order shall be deterministic, and shall have post-order visitor support.
+Tests: T1, T2
+R4. --past shall support the new AST constructs, with child nesting following the same patterns already built into TOP.
+Tests: T3
+R5. Each AST Node shall preserve the starting location as the starting line and column of the original source, starting at line 1 and column 0.
+Tests: T4
+R6. A parent AST Node shall preserve the children nodes while needed by the AST.
+Tests: T5
+R7. A parent AST Node shall allow access to the children nodes.
+Tests: T6
+R8. An AST Node shall be built as a class that follows the structures defined in the rest of the requirements.
+Tests: T8, T9, T10, T11, T12, T13, T14
 
 ## Sequences
 R9. Sequences shall fit the following structure:
@@ -29,6 +30,7 @@ Sequence:
     --expr
 ```
 The elements shall contain ordered expressions, or no expressions.
+Tests: T8
 
 R10. Slices shall fit the following structure:
 ```
@@ -38,7 +40,7 @@ Slice:
   --upper_bound: expr | None
 ```
 The lower_bound and upper_bound shall have exist as either another expression, or be denoted as None, preserving the existence of that argument.
-Tests:
+Tests: T9
 
 R11. Indexing a Sequence shall have the following structure:
 ```
@@ -47,7 +49,7 @@ Index:
     --index: expr
 ```
 The index and sequence shall have an expression.
-Tests:
+Tests: T10
 
 R12. The length of a sequence shall have the following structure:
 ```
@@ -55,7 +57,7 @@ SeqLength:
   --sequence: expr
 ```
 The sequence shall have an expression.
-Tests:
+Tests: T11
 ## Lambdas
 R13. Lambdas shall have the following structure:
 ```
@@ -67,7 +69,7 @@ Lambda:
   --body: expr
 ```
 Each Lambda shall have at least one parameter, and the body shall have an expression.
-Tests:
+Tests: T12
 
 ## Ranges and Iteration
 R14. Ranges shall have the following structure:
@@ -77,7 +79,7 @@ Range:
   --end: expr
 ```
 Each Range shall have both a start and an end expression. Ranges shall only appear as part of a ForLoop.
-Tests:
+Tests: T13
 R15. For loop iteration shall have the following structure:
 ```
 ForLoop:
@@ -90,22 +92,23 @@ ForLoop:
     --statement
 ```
 Each ForLoop shall have an iterator as an binder to a name declaration. Each ForLoop shall have a range, as either a Range or an expression. Each ForLoop shall have a `by` as either an expr or None. Each ForLoop shall have a body of ordered statements. The body shall be allowed to be empty.
-Tests:
+Tests: T14
 # Traversal
 R16. Traversal of a node shall move across the node's children, its elements, via the source order of a node. 
-Tests:
+Tests: T2, T15
 R17. If the traversal finds a child node missing, it shall skip it. 
-Tests:
+Tests: T16, T17
 R18. Traversal shall be done in post-order. The entirety of a child's subtree shall be traversed before the parent is visited.
-Tests:
+Tests: T2, T18
 # Pretty Printing
 R19. Upon Pretty Printing the AST, parsing and creating an AST using the Pretty Printed AST shall result in the an AST of equivalent structure being formed, along with identical text being printed via the second AST.
-Tests:
-R20. Binary operators shall have one space on the left and right.
+Tests: T19
+R20. Binary operators shall have one space on the left and right. T20
 Tests:
 R21. Binary expressions shall be surrounded by parentheses.
-Tests:
+Tests: T20
 R22. Expression children shall preserve their own printing rules.
+Tests: T21
 ## Sequences
 R23. The element list shall be enclosed in brackets.
 Tests:
@@ -185,5 +188,24 @@ R49. Code Generation shall be pushed to later stages.
 Tests:
 
 # Tests
-T1. Get parse structure from some random SOP program.
-T2. Create an
+T1. Build an AST and traverse over it. Denote the size of the AST, and check if it traversed over the same number of Unique Nodes. Run twice to ensure deterministic behavior.
+T2. Create a mock AST that takes `3 + 5`, and check that the visitor order follows `3, 5, +`, to follow post-order convention. 
+T3. Create a sequence, ForLoop, slice a sequence, index a sequence, get the length of a sequence, fill the ForLoop with a range and by keyword, and create a Lambda. Ensure --past output contains all of them in the expected format.
+T4. Create a mock program with a known starting line and column for a random declaration. Ensure the stored starting line and column match the source.
+T5. Create a parent node. Move the node outside of the original space, removing the local pointer from the initial space, and ensure that access to the node's children works the same. Do this for every new construct.
+T6. Create a node, and populate its children. Try accessing them. Do this for every new construct.
+T7. Create a parse tree, and save an expeted AST result based on that parse tree. Create the AST and assert that they are equal.
+T8. Attempt making a sequence that is empty, one element, or three elements. Compare the output to the expected AST output.
+T9. Attempt slicing a sequence with empty, only lower_bound, only upper_bound, and both bounds, and compare to the expected AST.
+T10. Attempt indexing a Sequence with an expression and show it successfully creates an AST with the expected structure.
+T11. Attempt using the length expression on an expression and show it creates the expected structure.
+T12. Attempt creating a Lambda with proper structure and show it matches an expected AST output.
+T13. Attempt creating a Range with an expression on both sides, and show it matches an expected AST structure.
+T14. Attempt creating a ForLoop with a Range, a ForLoop with an expr, a ForLoop with a by, and a ForLoop without a by. Show that all match an expected AST structure.
+T15. Create an AST structure for all new constructs, and traverse starting from the source of the node. Ensure it visits every child in the source order.
+T16. Create a Slice missing the lower_bound, missing the upper_bound, and missing both, and try traversing the AST structure. For every omitted section, skip it.
+T17. Create a ForLoop with the `by`, and without the `by`. Try traversing the AST structures outputted, and show that without the `by`, that is skipped in the traversal.
+T18. Create a sequence with a lambda, another sequence, and a random expression nested inside. Traverse the resulting AST and ensure it follows post-order traversal correctly by matching it to an expected output.
+T19. Parse a sample program and run it through the FrontEnd and Pretty Print the outputted AST. Run this outputted AST through the parser and FrontEnd again, and confirm the Pretty Print output is the same, and the AST structure is the same.
+T20. Gather every binary operator in a small program, parse, construct an AST, and then pretty print it, and confirm that each usage is surrounded by parentheses and spaced correctly.
+T21. Nest a binary operator, and a length operator formatted as `#(s[])`, and show that both follow their own pretty printing rules inside of the sequence.
