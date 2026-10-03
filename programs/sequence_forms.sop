@@ -1,16 +1,14 @@
-// Parse with: build/src/topc --parse-only programs/sequence_forms.sop
-// Demonstrates literals, expression elements, nesting, and chained indexing.
+// Inspect: build/src/topc --psource --psym programs/sequence_forms.sop
+// D2 front-end example; SOP type/ownership analysis and execution are deferred.
+// Empty, singleton, and nested literals; expression elements; indexing; length.
 main() {
-    var values, empty, singleton, nested, first, cell, count;
-
-    values = [1, 2*2, 3];
+    var empty, singleton, values, nested, first, cell, count;
     empty = [];
-    singleton = [5*3];
-    nested = [[1, 2], [1, 3]];
-
+    singleton = [5 * 3];
+    values = [1, 2 * 2, 3];
+    nested = [[1, 2], [3, 4]];
     first = values[0];
-    cell = nested[0][1];
+    cell = nested[1][0];
     count = #values;
-
     return count;
 }

@@ -1,11 +1,16 @@
-// Parse with: build/src/topc --parse-only programs/lambda_forms.sop
-// Demonstrates one parameter, multiple parameters, and nested lambda bodies.
+// Inspect: build/src/topc --psource --psym programs/lambda_forms.sop
+// D2 front-end example; SOP type/ownership analysis and execution are deferred.
+// One/multiple parameters, nested lambdas, captures, and general call syntax.
 main() {
-    var f, g, h;
-
-    f = (x) => x + 1;
-    g = (x, y) => f(x) + y;
-    h = (x) => (y) => x + y;
-
-    return 0;
+    var increment, add, makeAdder, addTwo, functions, result;
+    increment = (x) => x + 1;
+    add = (x, y) => increment(x) + y;
+    makeAdder = (a) => (b) => a + b;
+    addTwo = makeAdder(2);
+    functions = [(n) => n + 1, (n) => n * 2];
+    result = add(3, 4);
+    result = addTwo(result);
+    result = functions[0](result);
+    result = ((z) => z + 1)(result);
+    return result;
 }

@@ -1,19 +1,14 @@
-// Parse with: build/src/topc --parse-only programs/slice_forms.sop
-// Demonstrates both slice bounds, omitted bounds, and length expressions.
+// Inspect: build/src/topc --psource --psym programs/slice_forms.sop
+// D2 front-end example; SOP type/ownership analysis and execution are deferred.
+// Each combination of omitted bounds, expression bounds, and chained slices.
 main() {
-    var values, nested, middle, tail, head, whole, row, count;
-
-    values = [1, 2, 3, 4];
-    nested = [[1, 2], [3, 4]];
-
-    middle = values[1+1:3];
-    tail = values[1:];
-    head = values[:2];
+    var values, middle, tail, head, whole, chained, count;
+    values = [1, 2, 3, 4, 5];
+    middle = values[1 + 1:4];
+    tail = values[2:];
+    head = values[:3];
     whole = values[:];
-    row = nested[0][:1];
-
-    whole = values[:#values];
-    count = #(values[1:3]);
-
+    chained = values[1:5][0:2];
+    count = #(values[:#values]);
     return count;
 }

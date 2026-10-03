@@ -1,11 +1,10 @@
-main () {
-    var s1, z;
-    
-    s1 = 5;
-
-    for (i : s1) {
-        z = i;
-    }
-
+// Inspect: build/src/topc --psource --psym programs/parse_but_fail_semantics.sop
+// D2 front-end example; SOP type/ownership analysis and execution are deferred.
+// Intentionally ill-typed: integer arithmetic does not produce a sequence.
+// AST construction, printing, symbols, and structural weeding still succeed.
+// A future type checker should reject the slice's integer operand.
+main() {
+    var invalid;
+    invalid = (3 + 1)[:];
     return 0;
 }

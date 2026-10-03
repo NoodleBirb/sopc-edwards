@@ -1,51 +1,27 @@
-// Parse with: build/src/topc --parse-only programs/combinations.sop
-// Syntax examples only: SOP execution is not implemented in this deliverable.
-main() {
-    var values, nested, functions, transform, makeRow, choose;
-    var result, row, window, count;
+// Inspect: build/src/topc --psource --psym programs/combinations.sop
+// D2 front-end example; SOP type/ownership analysis and execution are deferred.
+// Sequence and borrowed iteration; a lambda inside a loop; nested constructs.
+// A sequence element can be borrowed even though direct indexed assignment
+// is rejected. Writing through the callee's borrowed parameter is distinct.
+incrementCell(p) {
+    *p = *p + 1;
+    return 0;
+}
 
+main() {
+    var values, nested, element, row, i, transform, total, ignored;
     values = [1, 2, 3, 4];
     nested = [[1, 2], [3, 4]];
-
-    // Store lambdas in a sequence, then index and call one.
-    functions = [(x) => x + 1, (x) => x * 2];
-    result = functions[0](values[1]);
-
-    // Lambda bodies can construct sequences or return slices.
-    makeRow = (x) => [x, x + 1, x * 2];
-    choose = (s, lo, hi) => s[lo:hi];
-    row = makeRow(values[0]);
-    window = choose(values, 1, #values);
-
-    // Create and call a lambda inside a range loop using sequence length.
-    for (i : 0 .. #values) {
-        transform = (x) => [x, x * 2];
-        row = transform(values[i]);
-        count = #row;
+    total = 0;
+    for (element : values) { total = total + element; }
+    for (element : values[1:] by 2) { total = total + element; }
+    for (element : &values) {
+        transform = (item) => item + 1;
+        total = total + transform(element);
     }
-
-    // Iterate over a slice and pass each element to a lambda.
-    for (value : values[1:]) {
-        row = makeRow(value);
+    for (row : &nested) {
+        for (i : 0 .. #row) { total = total + row[i]; }
     }
-
-    // Iterate over a sequence of lambdas with a step expression.
-    for (fn : functions by 1) {
-        result = fn(values[0]);
-    }
-
-    // Borrowed and nested iteration combine indexing, length, and calls.
-    for (items : &nested) {
-        for (j : 0 .. #items) {
-            row = makeRow(items[j]);
-        }
-    }
-
-    // A nested lambda returns a sequence used directly as iterable input.
-    transform = (x) => (y) => [x, y, x + y];
-    for (value : transform(2)(3)) {
-        result = functions[1](value);
-    }
-
-    return result;
+    ignored = incrementCell(&values[0]);
+    return total;
 }
