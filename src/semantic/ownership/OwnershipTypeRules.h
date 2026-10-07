@@ -33,6 +33,14 @@ public:
   /*! \brief Reject an `alloc` whose payload is an owned value. */
   static void checkAllocPayloads(ASTProgram *p, TypeInference *types);
 
+  /*! \brief Reject `==` or `!=` on operands of an Own type. Every
+   *  constructor value is a box and the comparison is of two words, so it
+   *  would compare addresses; owned values are matched, not compared. An
+   *  operand whose class still depends on instantiation is left to the
+   *  effect summaries, which judge it at each call. */
+  static void checkComparisons(ASTProgram *p, SymbolTable *sym,
+                               TypeInference *types);
+
   /*! \brief Reject a borrow inside a sum payload, an `alloc` payload, or a
    *  function result. */
   static void checkBorrowComponents(ASTProgram *p, SymbolTable *sym,
@@ -57,4 +65,11 @@ public:
    *  is not yet known. A function, int, sum, or fixed-mode reference type
    *  classifies the same way whatever variables it contains. */
   static bool classDependsOnInstantiation(const TopType *type);
+
+  /*! \brief True if the variable that makes \p type depend on instantiation
+   *  (a type variable, or a reference's mode variable) occurs in the function
+   *  type \p fnType, so that a call can instantiate it. A variable that does
+   *  not occur there is never instantiated and nothing in the body gave it a
+   *  type: no owned value ever flowed into it. */
+  static bool instantiableBy(const TopType *type, TopType *fnType);
 };

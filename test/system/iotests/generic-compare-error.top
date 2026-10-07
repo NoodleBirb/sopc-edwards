@@ -1,0 +1,16 @@
+// A generic body compares its formal, whose type is a variable there, so the
+// requirement "p's instance must be Copy" is recorded at the definition and
+// judged at each call. same(3) would be fine; same(a) with an alloc is not.
+same(p) {
+  var r;
+  r = p == p;
+  output r;
+  return p;
+}
+
+main() {
+  var a, b;
+  a = alloc 1;
+  b = same(a);
+  return *b;
+}

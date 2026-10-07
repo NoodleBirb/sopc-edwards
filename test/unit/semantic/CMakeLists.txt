@@ -13,6 +13,7 @@ target_sources(
           ${CMAKE_CURRENT_SOURCE_DIR}/BorrowCheckerTest.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/BorrowComponentCheckTest.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/AliasCheckTest.cpp
+          ${CMAKE_CURRENT_SOURCE_DIR}/ComparisonCheckTest.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/SemanticAnalysisCFGIntegrationTest.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/cfg/BasicBlockTest.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/cfg/ControlFlowGraphTest.cpp

@@ -1,0 +1,15 @@
+// soundness grid case sumown.if2.compare.borroww
+// kind=sumown context=if2 op1=compare op2=borroww
+// expect: reject (compares their addresses)
+type Box = Full(v) | Empty;
+type Wrapper = Wrap(inner);
+type Sel = On(k) | Off;
+lookw(q) { var t; t = 0; case *q of { Full(_) -> t = 1; Empty -> t = 0; } return t; }
+main(c) {
+  var x, y, w, r, i, sel;
+  r = 0;
+  x = Full(alloc 5);
+  if (c > 0) { r = r + (x == x); } else { r = r + (x == x); }
+  r = r + lookw(&x);
+  return 0;
+}

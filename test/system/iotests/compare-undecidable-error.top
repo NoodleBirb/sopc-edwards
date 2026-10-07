@@ -1,0 +1,17 @@
+// x has a variable type inside a generic body and comes from a call through a
+// function value, not from a formal, so no call site can be asked whether it
+// is owned. Rejected at the definition, like a dereference in the same spot.
+inc(n) {
+  return n + 1;
+}
+
+g(p, f) {
+  var x, r;
+  x = f(p);
+  r = x == x;
+  return x;
+}
+
+main() {
+  return g(1, inc);
+}

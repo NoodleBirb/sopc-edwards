@@ -1,0 +1,31 @@
+// Equality on Copy operands stays legal: integers, function values, borrows
+// (which compare the addresses of the borrowed variables), payloads read
+// through owning or borrowed references, and values whose type inference
+// never resolved in a non-generic function (nothing owned ever flowed into
+// them, so they hold zero). Exits 0.
+inc(n) { return n + 1; }
+
+same(a, b) { return a == b; }
+
+deq(p, q) { return *p == *q; }
+
+unset() { var q; return q; }
+
+main() {
+  var a, b, p1, p2, u, v, x, y;
+  a = 3;
+  b = 3;
+  if (same(a, b) != 1) error 1;
+  if (same(&a, &b) != 0) error 2;
+  if (same(&a, &a) != 1) error 3;
+  if (same(inc, inc) != 1) error 4;
+  p1 = alloc 7;
+  p2 = alloc 7;
+  if (*p1 != *p2) error 5;
+  if (deq(&a, &b) != 1) error 6;
+  if ((x == y) != 1) error 7;
+  u = unset();
+  v = unset();
+  if ((u == v) != 1) error 8;
+  return 0;
+}

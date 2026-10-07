@@ -1,0 +1,15 @@
+// soundness grid case own.call.tempcmp.consume
+// kind=own context=call op1=tempcmp op2=consume
+// expect: reject (compares their addresses)
+type Wrapper = Wrap(inner);
+type Sel = On(k) | Off;
+consume(p) { return *p; }
+make() { var p; p = alloc 7; return p; }
+pair(a1, a2) { return a1 + consume(a2); }
+main(c) {
+  var x, y, w, r, i, sel;
+  r = 0;
+  x = alloc 5;
+  r = r + pair((make() == make()), x);
+  return 0;
+}

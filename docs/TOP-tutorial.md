@@ -120,7 +120,9 @@ comparison results have type `int`.
 
 The comparison operators are `>`, `==`, and `!=`. Arithmetic and `>` require
 integer operands. Equality and disequality require both operands to have the
-same type.
+same type, and that type must be `Copy` (Section 9): an owned value is
+compared by matching it with `case`, or by comparing what it holds
+(`*p == *q`), never by `==` on the value itself.
 
 Statements include assignment, blocks, `if`/`else`, `while`, `case`, `output`,
 `error`, and `return`. `error e` reports an error value and terminates execution.
@@ -1249,6 +1251,9 @@ expressions that contributed those incompatible requirements.
 | Move in while-loop condition / still owned at the end of a while-loop iteration | A loop condition or body changes which bindings are owned |
 | Moved while the call borrows it | One call both borrows an owner and moves it |
 | Uses it again after passing it on | A generic body reuses a formal it passed on, called with an owned value |
+| `==` on owned values compares their addresses | An operand of `==` or `!=` has an `Own` type; match it with `case` or compare what it holds |
+| Compares it with `==` / compares what it points at with `==` | A generic body compares a formal (or its referent), called with an owned value |
+| Cannot tell whether ... compares owned values | A generic body compares a value of variable type that no call can be asked about |
 | Borrow must be an immediate argument | A direct borrow appears outside a call argument |
 | Borrow-derived value escapes | Borrow provenance reaches a forbidden sink |
 

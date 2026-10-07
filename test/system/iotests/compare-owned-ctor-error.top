@@ -1,0 +1,11 @@
+// Every constructor expression allocates a box, so == on two constructor
+// values compares addresses: Nil == Nil would be false. Rejected: an operand
+// of == must be Copy.
+type List = Nil | Cons(h, t);
+
+main() {
+  var r;
+  r = 0;
+  if (Nil == Nil) r = 1;
+  return r;
+}

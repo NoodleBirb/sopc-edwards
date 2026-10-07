@@ -1,0 +1,15 @@
+// soundness grid case sum.call.compare.borrow
+// kind=sum context=call op1=compare op2=borrow
+// expect: reject (compares their addresses)
+type Cell = Val(n) | Nope;
+type Wrapper = Wrap(inner);
+type Sel = On(k) | Off;
+look(q) { var t; t = 0; case *q of { Val(n) -> t = n; Nope -> t = 0; } return t; }
+pair(a1, a2) { return a1 + look(a2); }
+main(c) {
+  var x, y, w, r, i, sel;
+  r = 0;
+  x = Val(5);
+  r = r + pair((x == x), &x);
+  return 0;
+}

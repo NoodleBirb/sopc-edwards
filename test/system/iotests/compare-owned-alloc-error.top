@@ -1,0 +1,9 @@
+// Two owning references compared by ==: address equality on owned values.
+// Rejected; compare what they hold (*p1 == *p2) instead.
+main() {
+  var p1, p2, r;
+  p1 = alloc 7;
+  p2 = alloc 6;
+  r = p1 == p2;
+  return r;
+}

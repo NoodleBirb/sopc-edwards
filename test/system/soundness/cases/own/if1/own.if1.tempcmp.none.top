@@ -1,0 +1,14 @@
+// soundness grid case own.if1.tempcmp.none
+// kind=own context=if1 op1=tempcmp op2=none
+// expect: reject (compares their addresses)
+type Wrapper = Wrap(inner);
+type Sel = On(k) | Off;
+make() { var p; p = alloc 7; return p; }
+main(c) {
+  var x, y, w, r, i, sel;
+  r = 0;
+  x = alloc 5;
+  if (c > 0) { r = r + (make() == make()); }
+  
+  return 0;
+}

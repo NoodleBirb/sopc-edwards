@@ -19,7 +19,9 @@ A full compilation processes a program in this order:
 5. Build source-level control-flow graphs.
 6. Build the call graph.
 7. Infer types and generalized function schemes.
-8. Check that `alloc` payloads are not owned (`OwnershipTypeRules`).
+8. Check that `alloc` payloads are not owned and that `==`/`!=` compare
+   `Copy` values (`OwnershipTypeRules`); a comparison at a type variable in
+   a generic body is left to the summaries.
 9. Classify inferred types for ownership (`OwnershipClassifier`).
 10. Build function-effect summaries: formal modes, return origins, and the
     copy requirements a body imposes (`FunctionEffectSummaries::build`).

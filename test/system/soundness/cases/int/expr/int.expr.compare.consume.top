@@ -1,0 +1,13 @@
+// soundness grid case int.expr.compare.consume
+// kind=int context=expr op1=compare op2=consume
+// expect: accept
+type Wrapper = Wrap(inner);
+type Sel = On(k) | Off;
+consume(p) { return p + 1; }
+main(c) {
+  var x, y, w, r, i, sel;
+  r = 0;
+  x = 5;
+  r = r + (x == x) + consume(x);
+  return 0;
+}

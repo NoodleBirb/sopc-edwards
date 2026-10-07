@@ -4,6 +4,7 @@
 #include "../SemanticLogging.h"
 
 #include "ASTAssignStmt.h"
+#include "ASTBinaryExpr.h"
 #include "ASTAllocExpr.h"
 #include "ASTBlockStmt.h"
 #include "ASTBorrowExpr.h"
@@ -120,6 +121,15 @@ struct OriginState {
    * judged at each call). */
   std::set<int> maybeForwarded;
   std::set<int> reused;
+  /* Formals that are (through an alias) an operand of == or != on this path:
+   * a Copy requirement, since at an owned instance the comparison would be of
+   * addresses. An operand of variable type with no formal behind it cannot be
+   * judged at any call; it is kept for the definition-time rejection. */
+  std::set<int> compared;
+  /* Formals whose referent (`*p`) is an operand of == or !=: the value
+   * behind the actual must be Copy, as for a move out of a borrow. */
+  std::set<int> comparedReferent;
+  std::vector<std::pair<ASTBinaryExpr *, ASTExpr *>> comparedUntracked;
 };
 
 bool sameOrigin(const OriginFact &a, const OriginFact &b) {
@@ -195,6 +205,29 @@ void noteForwards(ASTNode *node, OriginState &state,
     }
     return;
   }
+  if (auto *cmp = dynamic_cast<ASTBinaryExpr *>(node)) {
+    auto op = cmp->getOpKind();
+    if (op == ASTBinaryExpr::BinaryOp::Eq ||
+        op == ASTBinaryExpr::BinaryOp::Neq) {
+      for (ASTExpr *operand : {cmp->getLeft(), cmp->getRight()}) {
+        auto origin = originForExpr(operand, state, sym, functionDecl);
+        if (origin.origin == FunctionEffectSummaries::ReturnOrigin::FromFormal) {
+          state.compared.insert(origin.formalIndex);
+          continue;
+        }
+        if (auto *deref = dynamic_cast<ASTDeRefExpr *>(operand)) {
+          auto inner = originForExpr(deref->getPtr(), state, sym, functionDecl);
+          if (inner.origin == FunctionEffectSummaries::ReturnOrigin::FromFormal) {
+            state.comparedReferent.insert(inner.formalIndex);
+            continue;
+          }
+        }
+        state.comparedUntracked.push_back({cmp, operand});
+      }
+    }
+    // fall through: the operands may contain calls
+  }
+
   if (auto *call = dynamic_cast<ASTFunAppExpr *>(node)) {
     noteForwards(call->getFunction(), state, log, sym, functionDecl);
     auto actuals = call->getActuals();
@@ -241,6 +274,16 @@ OriginState joinStates(const OriginState &left, const OriginState &right) {
                                right.maybeForwarded.end());
   joined.reused = left.reused;
   joined.reused.insert(right.reused.begin(), right.reused.end());
+  // Compared on either path.
+  joined.compared = left.compared;
+  joined.compared.insert(right.compared.begin(), right.compared.end());
+  joined.comparedReferent = left.comparedReferent;
+  joined.comparedReferent.insert(right.comparedReferent.begin(),
+                                 right.comparedReferent.end());
+  joined.comparedUntracked = left.comparedUntracked;
+  joined.comparedUntracked.insert(joined.comparedUntracked.end(),
+                                  right.comparedUntracked.begin(),
+                                  right.comparedUntracked.end());
   return joined;
 }
 
@@ -347,6 +390,9 @@ struct BodyFacts {
   OriginFact returned;
   std::set<int> forwarded;
   std::set<int> reused;
+  std::set<int> compared;
+  std::set<int> comparedReferent;
+  std::vector<std::pair<ASTBinaryExpr *, ASTExpr *>> comparedUntracked;
   std::vector<ForwardRecord> log;
 };
 
@@ -378,6 +424,9 @@ BodyFacts analyzeBody(ASTFunction *f, SymbolTable *sym) {
   }
   facts.forwarded = state.forwarded;
   facts.reused = state.reused;
+  facts.compared = state.compared;
+  facts.comparedReferent = state.comparedReferent;
+  facts.comparedUntracked = state.comparedUntracked;
   return facts;
 }
 
@@ -477,6 +526,62 @@ FunctionEffectSummaries::build(ASTProgram *ast, SymbolTable *sym,
         summary.formalRequirement[i] =
             joinRequirement(summary.formalRequirement[i], CopyRequirement::Self);
         summary.formalRequirementReasons[i] |= UsedAfterPassedOn;
+      }
+    }
+
+    // A generic formal compared with == or != is sound only when its instance
+    // is Copy: every constructor value is a box and the comparison is of two
+    // words, so an owned instance would be compared by address.
+    for (int i : facts.compared) {
+      if (i >= 0 && static_cast<std::size_t>(i) < summary.formalModes.size() &&
+          summary.formalModes[i] == FormalMode::DependsOnInstantiation) {
+        summary.formalRequirement[i] =
+            joinRequirement(summary.formalRequirement[i], CopyRequirement::Self);
+        summary.formalRequirementReasons[i] |= Compared;
+      }
+    }
+
+    // `*p == *q` on a reference formal: the value behind the actual must be
+    // Copy, as for a move out of a borrow. Recorded only while the referent's
+    // class depends on the instance; a solved Own referent was rejected at
+    // the definition by the read-off.
+    for (int i : facts.comparedReferent) {
+      if (i < 0 || static_cast<std::size_t>(i) >= summary.formalModes.size()) {
+        continue; // LCOV_EXCL_LINE
+      }
+      auto formalType = types->getInferredType(f->getFormals()[i]);
+      auto *ref = dynamic_cast<ReferenceType *>(formalType.get());
+      if (ref == nullptr ||
+          !OwnershipTypeRules::classDependsOnInstantiation(
+              ref->getReferencedType().get())) {
+        continue;
+      }
+      summary.formalRequirement[i] = joinRequirement(
+          summary.formalRequirement[i], CopyRequirement::Referent);
+      summary.formalRequirementReasons[i] |= Compared;
+    }
+
+    // A compared operand of variable type with no formal behind it (a result
+    // of a call through a function value, say) cannot be judged at any call.
+    // If its variable occurs in the function's type a call instantiates it
+    // and nobody can decide later, so decide now. If it does not, nothing is
+    // ever instantiated and nothing in the body gave it a type (an owned
+    // value's type is fixed at its source), so it is Copy.
+    {
+      auto fnType = types->getInferredType(f->getDecl());
+      for (const auto &[cmp, operand] : facts.comparedUntracked) {
+        auto operandType = types->getInferredType(operand, f->getDecl());
+        if (operandType == nullptr ||
+            !OwnershipTypeRules::classDependsOnInstantiation(operandType.get()) ||
+            !OwnershipTypeRules::instantiableBy(operandType.get(), fnType.get())) {
+          continue;
+        }
+        std::ostringstream oss;
+        oss << "Ownership error on line " << cmp->getLine()
+            << ": cannot tell whether '" << *cmp
+            << "' compares owned values; compare a formal parameter directly "
+               "so the decision can be made where the function is called.";
+        RuleToggles::reject("compare-undecidable", oss.str());
       }
     }
 
@@ -670,6 +775,18 @@ void FunctionEffectSummaries::resolveRequirements(
               oss << " passes an owned value to generic formal '"
                   << s->formalNames[i] << "' of '" << s->functionName
                   << "', which uses it again after passing it on";
+            } else if (selfViolated && (reasons & Compared)) {
+              oss << " passes an owned value to generic formal '"
+                  << s->formalNames[i] << "' of '" << s->functionName
+                  << "', which compares it with '=='; owned values are "
+                     "compared by matching them";
+            } else if (!selfViolated && (reasons & Compared)) {
+              // The position walk also records a move-out for `*p` under
+              // ==; the comparison names the exact use and its repair.
+              oss << " passes a borrow of an owned value to generic formal '"
+                  << s->formalNames[i] << "' of '" << s->functionName
+                  << "', which compares what it points at with '=='; owned "
+                     "values are compared by matching them";
             } else if (!selfViolated && (reasons & OverwritesThroughBorrow) &&
                        !(reasons & MovesOutOfBorrow)) {
               oss << " overwrites an owned value through the borrow: callee '"

@@ -1,0 +1,13 @@
+// soundness grid case own.expr.compare.consume
+// kind=own context=expr op1=compare op2=consume
+// expect: reject (compares their addresses)
+type Wrapper = Wrap(inner);
+type Sel = On(k) | Off;
+consume(p) { return *p; }
+main(c) {
+  var x, y, w, r, i, sel;
+  r = 0;
+  x = alloc 5;
+  r = r + (x == x) + consume(x);
+  return 0;
+}

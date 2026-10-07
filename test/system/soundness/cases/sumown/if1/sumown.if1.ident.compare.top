@@ -1,0 +1,15 @@
+// soundness grid case sumown.if1.ident.compare
+// kind=sumown context=if1 op1=ident op2=compare
+// expect: reject (compares their addresses)
+type Box = Full(v) | Empty;
+type Wrapper = Wrap(inner);
+type Sel = On(k) | Off;
+ident(z) { return z; }
+main(c) {
+  var x, y, w, r, i, sel;
+  r = 0;
+  x = Full(alloc 5);
+  if (c > 0) { y = ident(x); }
+  r = r + (x == x);
+  return 0;
+}

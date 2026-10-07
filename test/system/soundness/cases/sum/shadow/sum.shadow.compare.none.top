@@ -1,0 +1,14 @@
+// soundness grid case sum.shadow.compare.none
+// kind=sum context=shadow op1=compare op2=none
+// expect: reject (compares their addresses)
+type Cell = Val(n) | Nope;
+type Wrapper = Wrap(inner);
+type Sel = On(k) | Off;
+main(c) {
+  var x, y, w, r, i, sel;
+  r = 0;
+  x = Val(5);
+  y = Val(9);
+  case y of { Val(n) -> { r = r + (x == x);  r = r + n; } Nope -> { r = r + (x == x);  } }
+  return 0;
+}

@@ -1,0 +1,14 @@
+// soundness grid case own.loop.compare.assign
+// kind=own context=loop op1=compare op2=assign
+// expect: reject (compares their addresses)
+type Wrapper = Wrap(inner);
+type Sel = On(k) | Off;
+main(c) {
+  var x, y, w, r, i, sel;
+  r = 0;
+  x = alloc 5;
+  i = 2;
+  while (i > 0) { r = r + (x == x); i = i - 1; }
+  y = x;
+  return 0;
+}

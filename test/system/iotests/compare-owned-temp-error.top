@@ -1,0 +1,13 @@
+// An owned temporary as an operand of !=: neither consumed nor dereferenced,
+// so before this rule it was compared by address and never freed. Rejected.
+type List = Nil | Cons(h, t);
+
+mk() {
+  return Cons(1, Nil);
+}
+
+main() {
+  var r;
+  r = mk() != Nil;
+  return r;
+}

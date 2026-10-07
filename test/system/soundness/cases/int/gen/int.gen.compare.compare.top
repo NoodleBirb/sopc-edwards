@@ -1,0 +1,14 @@
+// soundness grid case int.gen.compare.compare
+// kind=int context=gen op1=compare op2=compare
+// expect: accept
+type Wrapper = Wrap(inner);
+type Sel = On(k) | Off;
+consume(p) { return p + 1; }
+gen(f, g, z) { var t; t = 0; t = t + (z == z); t = t + (z == z); return t; }
+main(c) {
+  var x, y, w, r, i, sel;
+  r = 0;
+  x = 5;
+  r = r + gen(consume, consume, x);
+  return 0;
+}

@@ -47,13 +47,13 @@ KINDS = [
     Kind("int", False, "",
          "5",
          "consume(p) { return p + 1; }\nlook(q) { return *q; }\n",
-         ("assign", "consume", "ident", "borrow", "payload")),
+         ("assign", "consume", "ident", "borrow", "payload", "compare")),
     Kind("own", True, "",
          "alloc 5",
          "consume(p) { return *p; }\nlook(q) { return **q; }\n"
          "make() { var p; p = alloc 7; return p; }\n",
          ("assign", "consume", "ident", "borrow", "read", "write", "payload",
-          "temp")),
+          "temp", "compare", "tempcmp")),
     Kind("sum", True, "type Cell = Val(n) | Nope;\n",
          "Val(5)",
          "consume(p) { var t; t = 0; case p of { Val(n) -> t = n; Nope -> t = 0; } return t; }\n"
@@ -61,7 +61,7 @@ KINDS = [
          "consumew(p) { var t; t = 0; case p of { Val(_) -> t = 1; Nope -> t = 0; } return t; }\n"
          "lookw(q) { var t; t = 0; case *q of { Val(_) -> t = 1; Nope -> t = 0; } return t; }\n",
          ("assign", "consume", "ident", "borrow", "casev", "payload",
-          "consumew", "borroww")),
+          "consumew", "borroww", "compare")),
     Kind("sumown", True, "type Box = Full(v) | Empty;\n",
          "Full(alloc 5)",
          "consume(p) { var t; t = 0; case p of { Full(v) -> t = *v; Empty -> t = 0; } return t; }\n"
@@ -69,7 +69,7 @@ KINDS = [
          "consumew(p) { var t; t = 0; case p of { Full(_) -> t = 1; Empty -> t = 0; } return t; }\n"
          "lookw(q) { var t; t = 0; case *q of { Full(_) -> t = 1; Empty -> t = 0; } return t; }\n",
          ("assign", "consume", "ident", "borrow", "casev", "payload",
-          "consumew", "borroww")),
+          "consumew", "borroww", "compare")),
 ]
 
 # ---------------------------------------------------------------------------
@@ -114,6 +114,11 @@ def ops_for(kind: Kind):
                       ("&x", "lookw(a)")),
         # An owned result dereferenced without being stored (independent of x).
         "temp": Op("temp", "use", "r = r + *make();", "*make()", ("*make()", "a")),
+        # The owner, or two owned results, as operands of ==: an operand of a
+        # comparison must be Copy (owned values are compared by address).
+        "compare": Op("compare", "use", "r = r + (x == x);", "(x == x)", ("(x == x)", "a")),
+        "tempcmp": Op("tempcmp", "use", "r = r + (make() == make());",
+                      "(make() == make())", ("(make() == make())", "a")),
     }
     return [table[n] for n in kind.ops]
 
@@ -133,7 +138,7 @@ def is_move(op: Op, kind: Kind) -> bool:
 
 def touches_owner(op: Optional[Op]) -> bool:
     """Whether an operation involves the owner x at all."""
-    return op is not None and op.name != "temp"
+    return op is not None and op.name not in ("temp", "tempcmp")
 
 
 # ---------------------------------------------------------------------------
@@ -165,12 +170,15 @@ HELD = ["borrows it; a borrowed owner must stay alive"]
 OVERWRITE_LIVE = ["assigned while still owned"]
 GENERIC_REUSE = ["which uses it again after passing it on"]
 GENERIC_DROP = ["neither returns it nor passes it on"]
+COMPARE_OWNED = ["compares their addresses"]
+GENERIC_COMPARE = ["compares it with"]
 
 
 def expect(kind: Kind, context: str, op1: Op, op2: Optional[Op]):
     """The verdict the rules give, and the diagnostics that may report it."""
     if context == "gen":
-        # op1/op2 are "pass" (f(z)) or "lend" (g(&z)) inside a generic body.
+        # op1/op2 are "pass" (f(z)), "lend" (g(&z)), or "compare" (z == z)
+        # inside a generic body.
         if not kind.owned:
             return "accept", []
         passes = [op1.name, op2.name].count("pass")
@@ -178,7 +186,15 @@ def expect(kind: Kind, context: str, op1: Op, op2: Optional[Op]):
             return "reject", GENERIC_DROP
         if op1.name == "pass":
             return "reject", GENERIC_REUSE   # used again after passing on
+        if op1.name == "compare":
+            return "reject", GENERIC_COMPARE  # compared, then passed on once
         return "accept", []
+
+    # A comparison of the owner, or of two owned temporaries, is rejected at
+    # the definition before move analysis runs, whatever the context.
+    if kind.owned and any(op is not None and op.name in ("compare", "tempcmp")
+                          for op in (op1, op2)):
+        return "reject", COMPARE_OWNED
 
     c1 = creates(op1, kind)
     c2 = creates(op2, kind) if op2 else None
@@ -270,7 +286,8 @@ def program(kind: Kind, context: str, op1: Op, op2: Optional[Op]) -> Optional[st
         if "y = " in s1 or "y = " in s2:
             return None  # y is the enclosing scrutinee here
     elif context == "gen":
-        stmts = {"pass": "t = t + f(z);", "lend": "t = t + g(&z);"}
+        stmts = {"pass": "t = t + f(z);", "lend": "t = t + g(&z);",
+                 "compare": "t = t + (z == z);"}
         extra = (f"gen(f, g, z) {{ var t; t = 0; {stmts[op1.name]} "
                  f"{stmts[op2.name]} return t; }}\n")
         lender = "look" if "lend" in (op1.name, op2.name) else "consume"
@@ -304,7 +321,8 @@ def cases(kinds=None, contexts=None) -> List[Case]:
                 continue
             if context == "gen":
                 pairs = [(Op(a, "", "", None, None), Op(b, "", "", None, None))
-                         for a in ("pass", "lend") for b in ("pass", "lend")]
+                         for a in ("pass", "lend", "compare")
+                         for b in ("pass", "lend", "compare")]
             elif context in ("expr", "call"):
                 pairs = [(a, b) for a in ops for b in ops]
             else:

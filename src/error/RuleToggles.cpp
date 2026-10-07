@@ -24,6 +24,8 @@ const std::vector<std::string> &known() {
       "borrow-escape",          // borrow-derived value reaches a sink
       "borrow-component",       // no borrow inside a payload, alloc, or result
       "alloc-payload",          // an owning pointer's payload is Copy
+      "compare-owned",          // == and != compare Copy values only
+      "compare-undecidable",    // generic compare not through a formal
       "alias-binder",           // binder of case *e may only be reborrowed
       "alias-move-out",         // *p of an owned referent is not taken
       "alias-overwrite",        // *p = v may not replace an owned referent

@@ -112,7 +112,7 @@ main() {
 
 | Feature | Constraint |
 |---------|------------|
-| Comparisons | Only `>`, `==`, `!=` — no `<`, `<=`, `>=` |
+| Comparisons | Only `>`, `==`, `!=` — no `<`, `<=`, `>=`; `==` and `!=` take `Copy` operands only (owned values are matched with `case`, not compared) |
 | `return` | Must be the final statement in a function body — no early return |
 | Ownership | Owned values (including sum-type values) are linear: passing by value moves; use `&x` to borrow for read/write without moving |
 | Owned pointers | Single-level: `alloc expr` requires a non-owning payload; `own&own&T` is rejected. Own structured data with a sum type instead |

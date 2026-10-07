@@ -1,0 +1,14 @@
+// soundness grid case sumown.seq.compare.payload
+// kind=sumown context=seq op1=compare op2=payload
+// expect: reject (compares their addresses)
+type Box = Full(v) | Empty;
+type Wrapper = Wrap(inner);
+type Sel = On(k) | Off;
+main(c) {
+  var x, y, w, r, i, sel;
+  r = 0;
+  x = Full(alloc 5);
+  r = r + (x == x);
+  w = Wrap(x);
+  return 0;
+}

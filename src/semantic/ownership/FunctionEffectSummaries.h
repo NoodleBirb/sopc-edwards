@@ -44,6 +44,7 @@ public:
     LendsToMoveOut = 1u << 2,    ///< `&x` handed to a callee that takes `*p`
     UsedAfterPassedOn = 1u << 3, ///< formal used again after passing it on
     NotDisposed = 1u << 4,       ///< formal neither returned nor passed on on every path
+    Compared = 1u << 5,          ///< formal is an operand of == or != (address equality at an owned instance)
   };
 
   /*! \brief A requirement together with the reasons it was recorded. */

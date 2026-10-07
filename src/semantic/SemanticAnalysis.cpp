@@ -25,6 +25,7 @@ std::shared_ptr<SemanticAnalysis> SemanticAnalysis::analyze(ASTProgram *ast) {
   auto callGraph = CallGraph::build(ast, symTable.get());
   auto typeResults = TypeInference::run(ast, callGraph.get(), symTable.get());
   OwnershipTypeRules::checkAllocPayloads(ast, typeResults.get());
+  OwnershipTypeRules::checkComparisons(ast, symTable.get(), typeResults.get());
   auto ownershipClassifier = std::make_shared<OwnershipClassifier>(
       symTable.get(), typeResults.get());
   auto functionEffectSummaries = FunctionEffectSummaries::build(

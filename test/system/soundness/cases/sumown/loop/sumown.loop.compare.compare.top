@@ -1,0 +1,15 @@
+// soundness grid case sumown.loop.compare.compare
+// kind=sumown context=loop op1=compare op2=compare
+// expect: reject (compares their addresses)
+type Box = Full(v) | Empty;
+type Wrapper = Wrap(inner);
+type Sel = On(k) | Off;
+main(c) {
+  var x, y, w, r, i, sel;
+  r = 0;
+  x = Full(alloc 5);
+  i = 2;
+  while (i > 0) { r = r + (x == x); i = i - 1; }
+  r = r + (x == x);
+  return 0;
+}

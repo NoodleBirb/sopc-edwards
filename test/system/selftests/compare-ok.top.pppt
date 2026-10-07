@@ -1,0 +1,85 @@
+inc(n)
+{
+  return (n + 1);
+}
+
+same(a, b)
+{
+  return (a == b);
+}
+
+deq(p, q)
+{
+  return (*p == *q);
+}
+
+unset()
+{
+  var q;
+  return q;
+}
+
+main()
+{
+  var a, b, p1, p2, u, v, x, y;
+  a = 3;
+  b = 3;
+  if ((same(a, b) != 1))
+    error 1;
+  if ((same(&a, &b) != 0))
+    error 2;
+  if ((same(&a, &a) != 1))
+    error 3;
+  if ((same(inc, inc) != 1))
+    error 4;
+  p1 = alloc 7;
+  p2 = alloc 7;
+  if ((*p1 != *p2))
+    error 5;
+  if ((deq(&a, &b) != 1))
+    error 6;
+  if (((x == y) != 1))
+    error 7;
+  u = unset();
+  v = unset();
+  if (((u == v) != 1))
+    error 8;
+  return 0;
+}
+
+Functions : {
+  deq : (borrow&α<(*q)@10:25>,borrow&α<(*q)@10:25>) -> int,
+  inc : (int) -> int,
+  main : () -> int,
+  same : (α<b@8:8>,α<b@8:8>) -> int,
+  unset : () -> α<q@12:14>
+}
+
+Locals for function deq : {
+  p : borrow&α<(*q)@10:25>,
+  q : borrow&α<(*q)@10:25>
+}
+
+Locals for function inc : {
+  n : int
+}
+
+Locals for function main : {
+  a : int,
+  b : int,
+  p1 : own&int,
+  p2 : own&int,
+  u : α<unset()@28:6>,
+  v : α<unset()@28:6>,
+  x : α<y@15:29>,
+  y : α<y@15:29>
+}
+
+Locals for function same : {
+  a : α<b@8:8>,
+  b : α<b@8:8>
+}
+
+Locals for function unset : {
+  q : α<q@12:14>
+}

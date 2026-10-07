@@ -3,6 +3,7 @@
 #include "../SemanticLogging.h"
 
 #include "ASTAllocExpr.h"
+#include "ASTBinaryExpr.h"
 #include "ASTFunction.h"
 #include "ASTProgram.h"
 #include "ASTSumTypeDecl.h"
@@ -139,6 +140,52 @@ bool OwnershipTypeRules::classDependsOnInstantiation(const TopType *type) {
   return false;
 }
 
+namespace {
+bool containsMode(const TopType *type, const TopType &mode,
+                  std::set<const TopType *> &visited) {
+  if (type == nullptr || !visited.insert(type).second) {
+    return false;
+  }
+  if (auto *ref = dynamic_cast<const ReferenceType *>(type)) {
+    if (ref->getMode() != nullptr && *ref->getMode() == mode) {
+      return true;
+    }
+  }
+  if (auto *mu = dynamic_cast<const TopMu *>(type)) {
+    return containsMode(mu->getT().get(), mode, visited);
+  }
+  for (const auto &child : type->getChildTypes()) {
+    if (containsMode(child.get(), mode, visited)) {
+      return true;
+    }
+  }
+  return false;
+}
+} // namespace
+
+bool OwnershipTypeRules::instantiableBy(const TopType *type, TopType *fnType) {
+  if (fnType == nullptr) {
+    return false;
+  }
+  if (auto *var = dynamic_cast<const TopVar *>(type)) {
+    for (const auto &fv : TypeVars::collect(fnType)) {
+      if (*fv == *var) {
+        return true;
+      }
+    }
+    return false;
+  }
+  if (auto *ref = dynamic_cast<const ReferenceType *>(type)) {
+    auto mode = ref->getMode();
+    if (mode == nullptr) {
+      return false; // LCOV_EXCL_LINE
+    }
+    std::set<const TopType *> visited;
+    return containsMode(fnType, *mode, visited);
+  }
+  return false;
+}
+
 void OwnershipTypeRules::rejectUnsupportedRecursiveType(
     TopType *type, const std::string &context) {
   if (containsRecursiveFunctionType(type)) {
@@ -173,6 +220,41 @@ void OwnershipTypeRules::checkAllocPayloads(ASTProgram *p,
     RuleToggles::reject("alloc-payload", oss.str());
   });
   SEMANTIC_LOG(1, "alloc-payload") << "complete";
+}
+
+void OwnershipTypeRules::checkComparisons(ASTProgram *p, SymbolTable *sym,
+                                          TypeInference *types) {
+  (void)sym;
+  SEMANTIC_LOG(1, "compare-owned") << "start";
+  for (auto *f : p->getFunctions()) {
+    struct Visitor : public ASTVisitor {
+      std::vector<ASTBinaryExpr *> comparisons;
+      void endVisit(ASTBinaryExpr *element) override {
+        auto op = element->getOpKind();
+        if (op == ASTBinaryExpr::BinaryOp::Eq ||
+            op == ASTBinaryExpr::BinaryOp::Neq) {
+          comparisons.push_back(element);
+        }
+      }
+    } visitor;
+    f->accept(&visitor);
+    for (auto *cmp : visitor.comparisons) {
+      // The typing rule gives both operands one type; read it off the left.
+      auto type = types->getInferredType(cmp->getLeft(), f->getDecl());
+      if (type == nullptr || classDependsOnInstantiation(type.get())) {
+        continue; // a generic body: judged at each call by the summaries
+      }
+      if (OwnershipClassifier::classifyType(type.get()) != OwnershipClass::Own) {
+        continue;
+      }
+      std::ostringstream oss;
+      oss << "Ownership error on line " << cmp->getLine() << ": '"
+          << cmp->getOp() << "' on owned values compares their addresses; "
+             "match them with case, or compare what they hold (*p == *q)";
+      RuleToggles::reject("compare-owned", oss.str());
+    }
+  }
+  SEMANTIC_LOG(1, "compare-owned") << "complete";
 }
 
 void OwnershipTypeRules::checkBorrowComponents(ASTProgram *p, SymbolTable *sym,

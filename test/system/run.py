@@ -98,6 +98,16 @@ EXPECTED_ERROR_SUBSTRINGS = {
         "escapes into constructor payload",
     "alias-return-error.top":
         "moves an owned value out of the borrow",
+    "compare-owned-ctor-error.top":
+        "'==' on owned values compares their addresses",
+    "compare-owned-alloc-error.top":
+        "compares their addresses",
+    "compare-owned-temp-error.top":
+        "'!=' on owned values compares their addresses",
+    "generic-compare-error.top":
+        "compares it with '=='",
+    "compare-undecidable-error.top":
+        "cannot tell whether",
     "alias-binder-move-error.top":
         "can only be reborrowed",
     "alias-ctor-payload-error.top":

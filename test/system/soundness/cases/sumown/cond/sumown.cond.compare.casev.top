@@ -1,0 +1,15 @@
+// soundness grid case sumown.cond.compare.casev
+// kind=sumown context=cond op1=compare op2=casev
+// expect: reject (compares their addresses)
+type Box = Full(v) | Empty;
+type Wrapper = Wrap(inner);
+type Sel = On(k) | Off;
+main(c) {
+  var x, y, w, r, i, sel;
+  r = 0;
+  x = Full(alloc 5);
+  i = 0;
+  while ((x == x) > i) { i = i + 1000; }
+  case x of { Full(v) -> r = r + *v; Empty -> r = r + 0; }
+  return 0;
+}

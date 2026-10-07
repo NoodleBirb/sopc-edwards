@@ -635,6 +635,8 @@ int main(int argc, char *argv[]) {
         typeResults = TypeInference::run(ast.get(), callGraph.get(),
                                          symTable.get());
         OwnershipTypeRules::checkAllocPayloads(ast.get(), typeResults.get());
+        OwnershipTypeRules::checkComparisons(ast.get(), symTable.get(),
+                                             typeResults.get());
       };
 
       auto ensureFunctionEffects = [&]() {

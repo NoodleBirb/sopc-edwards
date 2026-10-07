@@ -1,0 +1,15 @@
+// soundness grid case sumown.cond.compare.assign
+// kind=sumown context=cond op1=compare op2=assign
+// expect: reject (compares their addresses)
+type Box = Full(v) | Empty;
+type Wrapper = Wrap(inner);
+type Sel = On(k) | Off;
+main(c) {
+  var x, y, w, r, i, sel;
+  r = 0;
+  x = Full(alloc 5);
+  i = 0;
+  while ((x == x) > i) { i = i + 1000; }
+  y = x;
+  return 0;
+}
