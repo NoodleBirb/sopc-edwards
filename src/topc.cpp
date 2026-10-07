@@ -38,8 +38,10 @@
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <set>
 #include <sstream>
+#include <tuple>
 
 using namespace llvm;
 using namespace std;
@@ -164,7 +166,9 @@ void writeCallGraphAscii(ASTProgram *ast, CallGraph *callGraph,
 }
 
 void printOwnershipResult(ASTProgram *ast, SymbolTable *symbols,
-                          OwnershipClassifier *classifier, std::ostream &os) {
+                          OwnershipClassifier *classifier,
+                          const MoveAnalysis::DestructionPlan *plan,
+                          std::ostream &os) {
   os << "[ownership-result]\n";
   for (auto *function : symbols->getFunctions()) {
     const auto cls = classifier->classify(function);
@@ -193,6 +197,28 @@ void printOwnershipResult(ASTProgram *ast, SymbolTable *symbols,
     int count = counter.count;
     os << "  " << function->getName() << " : " << count << " destroy"
        << (count == 1 ? "" : "s") << "\n";
+
+    // Every destruction site in this function, by line: the destroys counted
+    // above, and the frees code generation executes from the plan itself.
+    if (plan == nullptr) {
+      continue;
+    }
+    std::vector<const MoveAnalysis::DestructionPlan::Site *> sites;
+    for (const auto &site : plan->sites) {
+      if (site.function == function) {
+        sites.push_back(&site);
+      }
+    }
+    std::stable_sort(sites.begin(), sites.end(),
+                     [](const auto *a, const auto *b) {
+                       return std::tie(a->line, a->column) <
+                              std::tie(b->line, b->column);
+                     });
+    for (const auto *site : sites) {
+      os << "    line " << std::left << std::setw(4) << site->line << " "
+         << std::setw(18) << MoveAnalysis::siteKindName(site->kind)
+         << site->what << "\n";
+    }
   }
 }
 
@@ -372,7 +398,7 @@ void printOwnershipConstraints(SymbolTable *symbols, OwnershipClassifier *oc,
     std::ostringstream text;
     text << event.kind << " " << event.variable << " (" << event.detail
          << ")";
-    records.push_back({"move", event.line, 1, text.str()});
+    records.push_back({event.label, event.line, event.column, text.str()});
   }
 
   ConstraintRenderer::renderSection("ownership-constraints", records, os);
@@ -731,7 +757,7 @@ int main(int argc, char *argv[]) {
       if (wantsOwnership) {
         ensureOwnershipResult();
         printOwnershipResult(ast.get(), symTable.get(), ownershipClassifier.get(),
-                             std::cout);
+                             destructionPlan.get(), std::cout);
         if (wantsConstraint) {
           printOwnershipConstraints(symTable.get(), ownershipClassifier.get(),
                                     std::cout);

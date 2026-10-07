@@ -55,6 +55,10 @@ public:
     std::string variable;
     int line;
     std::string detail;
+    /// "move" for ownership transfers; "free" for a destruction site that is
+    /// one call to free; "destroy" for one that destroys a value by its type.
+    std::string label = "move";
+    int column = 1;
   };
 
   enum class OwnershipState { Owned, Moved };
@@ -77,7 +81,27 @@ public:
     /// Owned payloads a consuming match discards with `_`, destroyed when the
     /// arm is taken (never while its patterns are still being tested).
     std::set<const ASTPattern *> discardedPayloads;
+
+    /// The kinds of destruction site, one per entry above. AtExit and
+    /// AtArmEnd become destroy statements; the rest are executed by code
+    /// generation. FreeAfterUse and MatchBox are always one call to free;
+    /// the others destroy a value by its type.
+    enum class SiteKind { AtExit, AtArmEnd, FreeAfterUse, MatchBox, DiscardedPayload };
+
+    /// One destruction site, for the views: the same facts as the entries
+    /// above, in one record, in the order the walk found them.
+    struct Site {
+      SiteKind kind;
+      ASTFunction *function;
+      int line;
+      int column;
+      std::string what; ///< the owner, binder, expression, or payload
+    };
+    std::vector<Site> sites;
   };
+
+  /*! \brief The site kind as the views print it ("free after use", ...). */
+  static const char *siteKindName(DestructionPlan::SiteKind kind);
 
   /*! \brief Run the analysis over every function in \p ast.
    *
@@ -97,6 +121,7 @@ private:
   OwnershipClassifier *classifier;
   FunctionEffectSummaries *functionEffects;
   ASTDeclNode *currentFuncDecl = nullptr; ///< set while analysing a function
+  ASTFunction *currentFunction = nullptr; ///< set while analysing a function
   std::vector<MoveTraceEvent> trace;
   DestructionPlan plan;
   /// Borrowed owners of each call whose actuals are being evaluated.
@@ -144,8 +169,15 @@ private:
                                   const StateMap &bodyState, int line);
 
   /*! \brief Record the owned payloads \p pat discards with `_` in a
-   *  consuming match; \p payload is the constructor parameter it matches. */
-  void collectDiscardedPayloads(ASTPattern *pat, ASTDeclNode *payload);
+   *  consuming match; \p payload is the constructor parameter it matches,
+   *  \p tag and \p index (1-based) name it, and \p arm is where it is taken. */
+  void collectDiscardedPayloads(ASTPattern *pat, ASTDeclNode *payload,
+                                const std::string &tag, std::size_t index,
+                                ASTCaseArm *arm);
+
+  /*! \brief Record a destruction site in the ledger and the trace. */
+  void recordSite(DestructionPlan::SiteKind kind, int line, int column,
+                  std::string what);
 
   /*! \brief Record `*e` for freeing after use if e is an unbound owning
    *  reference (a call or alloc). */

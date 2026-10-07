@@ -657,12 +657,14 @@ build/src/topc --pownership program.top
   local main.second : Own
 [destruction-summary]
   main : 1 destroy
+    line 7    at exit           second
 ```
 
 The classification records the kind of value each binding can hold, so both
 `first` and `second` are reported as `Own` even though `first` has moved. Move
 analysis separately records `first` as invalid and `second` as the current
-owner. Only the value held by `second` is destroyed at function exit. For now,
+owner. Only the value held by `second` is destroyed at function exit, and the
+line under the count says where: at the `return` on line 7. For now,
 read `main : 1 destroy` as confirmation that the compiler will clean up one
 live resource; Section 12 explains where automatic destruction is inserted and
 how it follows structured values. Running the same command on the `Box`
@@ -756,11 +758,13 @@ Locals for function main : {
 [destruction-summary]
   identity : 0 destroys
   main : 1 destroy
+    line 11   at exit           second
 
 [ownership-constraints]
   [move] 7:1 own first (ownership established by assignment)
   [move] 8:1 move first (ownership moved via function argument)
   [move] 8:1 own second (ownership established by assignment)
+  [destroy] 11:2 at exit second (still Owned at the return)
 ```
 
 Read these records in source order. `identity` retains the polymorphic
@@ -948,6 +952,7 @@ Locals for function main : {
 [destruction-summary]
   makeBox : 0 destroys
   main : 1 destroy
+    line 9    at exit           pointer
 [borrow-result]
   &value -> approved
 ```
@@ -1099,7 +1104,14 @@ Destruction follows structure recursively:
 5. Values classified as `Copy`, including borrows, never release another
   value's storage.
 
-`--pownership` exposes ownership and destruction results. `--san` instruments
+`--pownership` exposes ownership and destruction results. Under each
+function's count of inserted destroy statements it lists every site where the
+function frees something, by line, including the sites code generation
+handles without a statement: a dereferenced temporary (`free after use`), the
+box of a consuming match (`match box`), and a payload discarded by `_`
+(`discarded payload`). With `--constraint`, the same sites appear in the trace
+as `[free]` records (one call to `free`) or `[destroy]` records (destruction
+by type), beside the `[move]` records that led to them. `--san` instruments
 generated code with Address/LeakSanitizer, which helps reveal leaks, double frees,
 and invalid accesses while testing compiler behavior.
 
@@ -1110,10 +1122,12 @@ For this example, `--pownership` makes the inserted cleanup visible:
   local main.pointer : Own
 [destruction-summary]
   main : 1 destroy
+    line 4    at exit           pointer
 ```
 
 The source contains no destruction statement, but the summary reports one
-destroy inserted for the live value classified as `Own` and bound to `pointer`.
+destroy inserted for the live value classified as `Own` and bound to `pointer`,
+and lists the site: at the `return` on line 4.
 Compile with `--san` to have Address/LeakSanitizer check at runtime that the
 generated cleanup does not leak, free an allocation twice, or access it after
 it has been freed.

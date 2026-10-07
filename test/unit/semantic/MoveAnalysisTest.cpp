@@ -598,3 +598,118 @@ TEST_CASE("DestructionPass: owned case binders still owned at the end of an arm 
   // h and t at the end of the Link arm; c was consumed by the match.
   REQUIRE(counter.count == 2);
 }
+
+// ---------------------------------------------------------------------------
+// The destruction ledger: every site where the program frees something, in
+// one ordered record, so the views can show what the plan's sets and vectors
+// only encode.
+// ---------------------------------------------------------------------------
+
+TEST_CASE("DestructionPlan: the ledger records every kind of destruction site",
+          "[DestructionPlan]") {
+  std::stringstream program;
+  program << R"(
+    type Chain = Nil | Link(head, tail);
+    mk() { return alloc 1; }
+    main() { var c, r, z;
+      z = alloc 3;
+      r = *mk();
+      c = Link(alloc 2, Link(alloc 4, Nil));
+      case c of { Nil -> r = 0; Link(h, _) -> r = r + *h; }
+      return r; }
+  )";
+  auto ast = ASTHelper::build_ast(program);
+  auto analysis = SemanticAnalysis::analyze(ast.get());
+  const auto &sites = analysis->getDestructionPlan()->sites;
+  using Kind = MoveAnalysis::DestructionPlan::SiteKind;
+
+  auto find = [&](Kind kind, const std::string &what) {
+    for (const auto &s : sites) {
+      if (s.kind == kind && s.what == what) {
+        return &s;
+      }
+    }
+    return static_cast<const MoveAnalysis::DestructionPlan::Site *>(nullptr);
+  };
+
+  REQUIRE(sites.size() == 5);
+  for (const auto &s : sites) {
+    REQUIRE(s.function != nullptr);
+    REQUIRE(s.function->getName() == "main");
+  }
+
+  const auto *free = find(Kind::FreeAfterUse, "*mk()");
+  REQUIRE(free != nullptr);
+  REQUIRE(free->line == 6);
+
+  const auto *box = find(Kind::MatchBox, "case c");
+  REQUIRE(box != nullptr);
+  REQUIRE(box->line == 8);
+
+  const auto *dropped = find(Kind::DiscardedPayload, "Link payload 2");
+  REQUIRE(dropped != nullptr);
+  REQUIRE(dropped->line == 8);
+
+  const auto *binder = find(Kind::AtArmEnd, "h");
+  REQUIRE(binder != nullptr);
+  REQUIRE(binder->line == 8);
+
+  const auto *exit = find(Kind::AtExit, "z");
+  REQUIRE(exit != nullptr);
+  REQUIRE(exit->line == 9);
+}
+
+TEST_CASE("DestructionPlan: a function with nothing to free has no sites",
+          "[DestructionPlan]") {
+  std::stringstream program;
+  program << R"(
+    sink(p) { return *p; }
+    main() { var a; a = alloc 1; return sink(a); }
+  )";
+  auto ast = ASTHelper::build_ast(program);
+  auto analysis = SemanticAnalysis::analyze(ast.get());
+  using Kind = MoveAnalysis::DestructionPlan::SiteKind;
+  // a moves into sink, which frees it at its exit: one site, in sink.
+  const auto &sites = analysis->getDestructionPlan()->sites;
+  REQUIRE(sites.size() == 1);
+  REQUIRE(sites[0].kind == Kind::AtExit);
+  REQUIRE(sites[0].what == "p");
+  REQUIRE(sites[0].function->getName() == "sink");
+}
+
+TEST_CASE("MoveAnalysis: the trace labels single frees [free] and typed destruction [destroy]",
+          "[MoveAnalysis]") {
+  std::stringstream program;
+  program << R"(
+    type Chain = Nil | Link(head, tail);
+    mk() { return alloc 1; }
+    main() { var c, r, z;
+      z = alloc 3;
+      r = *mk();
+      c = Link(alloc 2, Link(alloc 4, Nil));
+      case c of { Nil -> r = 0; Link(h, _) -> r = r + *h; }
+      return r; }
+  )";
+  auto ast = ASTHelper::build_ast(program);
+  REQUIRE_NOTHROW(SemanticAnalysis::analyze(ast.get()));
+
+  auto has = [](const std::string &label, const std::string &kind,
+                const std::string &variable) {
+    for (const auto &e : MoveAnalysis::getLastTrace()) {
+      if (e.label == label && e.kind == kind && e.variable == variable) {
+        return true;
+      }
+    }
+    return false;
+  };
+  // Moves keep their label.
+  REQUIRE(has("move", "move", "c"));
+  // One call to free.
+  REQUIRE(has("free", "free after use", "*mk()"));
+  REQUIRE(has("free", "match box", "case c"));
+  // Destruction by type.
+  REQUIRE(has("destroy", "discarded payload", "Link payload 2"));
+  REQUIRE(has("destroy", "end of arm", "h"));
+  REQUIRE(has("destroy", "at exit", "z"));
+  REQUIRE_FALSE(has("move", "at exit", "z"));
+}

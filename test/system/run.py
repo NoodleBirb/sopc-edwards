@@ -585,6 +585,47 @@ def run_driver_tests(scratch: Path) -> List[TestResult]:
     check("driver.iown.local_factory",
           lambda: iown_destroys("iown-local-factory", "main : 1 destroy"))
 
+    # -- destruction ledger: every site where the program frees something is
+    #    listed under its function's count line in --pownership, and labelled
+    #    [free] (one call to free) or [destroy] (by type) in the trace --------
+    def pown_has(stem: str, *expected: str, constraint: bool = False):
+        src = SELFTESTS_DIR / f"{stem}.top"
+        cmd = [str(TOPC), "--pownership"] + (["--constraint"] if constraint else []) + [str(src)]
+        r = _run(cmd)
+        if r.returncode != 0:
+            return f"topc --pownership failed for {src.name}:\n{r.stderr.strip()}"
+        for line in expected:
+            if line not in r.stdout:
+                return f"expected line {line!r} for {src.name}; got:\n{r.stdout}"
+        return None
+
+    check("driver.plan.free_after_use",
+          lambda: pown_has("owned-temp-deref-ok",
+                           "    line 10   free after use    *mk(5)",
+                           "    line 14   free after use    *alloc (8!=8)",
+                           "    line 15   free after use    *mk(9)"))
+    check("driver.plan.match_box_and_discarded_payload",
+          lambda: pown_has("pattern-wildcard-own",
+                           "    line 12   match box         case x",
+                           "    line 14   discarded payload Hold payload 1"))
+    check("driver.plan.at_arm_end",
+          lambda: pown_has("case-binder-freed-ok",
+                           "    line 14   end of arm        h",
+                           "    line 14   end of arm        t",
+                           "    line 34   end of arm        t"))
+    check("driver.plan.at_exit",
+          lambda: pown_has("moveNoDoubleFree",
+                           "    line 7    at exit           q"))
+    check("driver.plan.trace_label_free",
+          lambda: pown_has("owned-temp-deref-ok",
+                           "[free] 10:6 free after use *mk(5) (owning result of a call or alloc, never bound)",
+                           constraint=True))
+    check("driver.plan.trace_label_destroy",
+          lambda: pown_has("case-binder-freed-ok",
+                           "[destroy] 14:4 end of arm h (binder still Owned at the end of the arm)",
+                           "[destroy] 7:10 at exit p (still Owned at the return)",
+                           constraint=True))
+
     # -- --pborrow --constraint snapshot ---------------------------------------
     def pc_borrow_snapshot(stem: str):
         src = SELFTESTS_DIR / f"{stem}.top"

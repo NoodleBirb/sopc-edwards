@@ -8,6 +8,7 @@
 [destruction-summary]
   identity : 0 destroys
   main : 1 destroy
+    line 11   at exit           second
 
 [ownership-constraints]
   [ownership] - function identity : Copy
@@ -19,3 +20,4 @@
   [move] 7:1 own first (ownership established by assignment)
   [move] 8:1 move first (ownership moved via function argument)
   [move] 8:1 own second (ownership established by assignment)
+  [destroy] 11:2 at exit second (still Owned at the return)

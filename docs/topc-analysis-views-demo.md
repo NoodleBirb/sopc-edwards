@@ -57,7 +57,7 @@ Save as `/tmp/topc-analysis-demo.top`.
 | `--ptype` | Inferred function and local types. |
 | `--pcallgraph` / `--pcallgraph=ascii` | Function call relationships. |
 | `--pcfg` / `--pcfg=ascii` | Control-flow graph for each function. |
-| `--pownership` | Ownership classes and destruction insertion summary. |
+| `--pownership` | Ownership classes, and every destruction site under its function. |
 | `--pborrow` | Approved borrow expressions; rejected programs use diagnostics. |
 | `--constraint` | Underlying constraints for supported analysis views. |
 
@@ -114,7 +114,9 @@ Expected output shape:
 1. `--pborrow` prints a `[borrow-result]` section with approved borrow
    expressions.
 2. `--pownership` prints `[ownership-result]` and `[destruction-summary]`
-   sections.
+   sections; each function's destroy count is followed by one line per
+   destruction site (`at exit`, `end of arm`, `free after use`, `match box`,
+   `discarded payload`).
 
 ## Constraint Views
 

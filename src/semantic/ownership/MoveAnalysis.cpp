@@ -57,8 +57,64 @@ const std::vector<MoveAnalysis::MoveTraceEvent> &MoveAnalysis::getLastTrace() {
 // Per-function analysis
 // ---------------------------------------------------------------------------
 
+const char *MoveAnalysis::siteKindName(DestructionPlan::SiteKind kind) {
+  switch (kind) {
+  case DestructionPlan::SiteKind::AtExit:
+    return "at exit";
+  case DestructionPlan::SiteKind::AtArmEnd:
+    return "end of arm";
+  case DestructionPlan::SiteKind::FreeAfterUse:
+    return "free after use";
+  case DestructionPlan::SiteKind::MatchBox:
+    return "match box";
+  case DestructionPlan::SiteKind::DiscardedPayload:
+    return "discarded payload";
+  }
+  return "?"; // LCOV_EXCL_LINE
+}
+
+namespace {
+const char *siteReason(MoveAnalysis::DestructionPlan::SiteKind kind) {
+  using Kind = MoveAnalysis::DestructionPlan::SiteKind;
+  switch (kind) {
+  case Kind::AtExit:
+    return "still Owned at the return";
+  case Kind::AtArmEnd:
+    return "binder still Owned at the end of the arm";
+  case Kind::FreeAfterUse:
+    return "owning result of a call or alloc, never bound";
+  case Kind::MatchBox:
+    return "consumed by the match; freed after the arm";
+  case Kind::DiscardedPayload:
+    return "dropped by _; destroyed when the arm is taken";
+  }
+  return "?"; // LCOV_EXCL_LINE
+}
+
+// FreeAfterUse and MatchBox are one call to free; the rest destroy by type.
+const char *siteLabel(MoveAnalysis::DestructionPlan::SiteKind kind) {
+  using Kind = MoveAnalysis::DestructionPlan::SiteKind;
+  return (kind == Kind::FreeAfterUse || kind == Kind::MatchBox) ? "free"
+                                                                 : "destroy";
+}
+
+std::string render(const ASTNode *node) {
+  std::ostringstream oss;
+  oss << *node;
+  return oss.str();
+}
+} // namespace
+
+void MoveAnalysis::recordSite(DestructionPlan::SiteKind kind, int line,
+                              int column, std::string what) {
+  plan.sites.push_back({kind, currentFunction, line, column, what});
+  trace.push_back({siteKindName(kind), what, line, siteReason(kind),
+                   siteLabel(kind), column});
+}
+
 void MoveAnalysis::analyzeFunction(ASTFunction *f) {
   currentFuncDecl = f->getDecl();
+  currentFunction = f;
 
   // Initial state: Own locals start uninitialized (no entry in the map). An
   // owned formal is owned by the callee (the caller moved it in by value), so
@@ -85,6 +141,15 @@ void MoveAnalysis::analyzeFunction(ASTFunction *f) {
   std::sort(owned.begin(), owned.end(), [](ASTDeclNode *a, ASTDeclNode *b) {
     return a->getName() < b->getName();
   });
+  // The destroys go before the function's final return.
+  auto stmts = f->getStmts();
+  ASTStmt *ret = stmts.empty() ? nullptr : stmts.back();
+  for (auto *decl : owned) {
+    recordSite(DestructionPlan::SiteKind::AtExit,
+               ret != nullptr ? ret->getLine() : f->getLine(),
+               ret != nullptr ? ret->getColumn() : f->getColumn(),
+               decl->getName());
+  }
   plan.atExit.push_back({f, std::move(owned)});
 }
 
@@ -176,6 +241,9 @@ MoveAnalysis::StateMap MoveAnalysis::analyzeStmt(ASTStmt *stmt, StateMap state) 
         dynamic_cast<ASTDeRefExpr *>(caseStmt->getCaseExpr()) == nullptr;
     if (byValue) {
       plan.consumingMatches.insert(caseStmt);
+      recordSite(DestructionPlan::SiteKind::MatchBox, caseStmt->getLine(),
+                 caseStmt->getColumn(),
+                 "case " + render(caseStmt->getCaseExpr()));
       for (auto *arm : caseStmt->getArms()) {
         std::vector<ASTDeclNode *> params;
         if (auto *owner = sym->getConstructorOwner(arm->getTag())) {
@@ -188,7 +256,8 @@ MoveAnalysis::StateMap MoveAnalysis::analyzeStmt(ASTStmt *stmt, StateMap state) 
         auto patterns = arm->getPatterns();
         for (std::size_t i = 0; i < patterns.size(); ++i) {
           collectDiscardedPayloads(patterns[i],
-                                   i < params.size() ? params[i] : nullptr);
+                                   i < params.size() ? params[i] : nullptr,
+                                   arm->getTag(), i + 1, arm);
         }
       }
     }
@@ -257,6 +326,10 @@ MoveAnalysis::StateMap MoveAnalysis::analyzeArm(ASTCaseArm *arm, bool byValue,
     }
   }
   if (!owned.empty()) {
+    for (auto *binder : owned) {
+      recordSite(DestructionPlan::SiteKind::AtArmEnd, arm->getLine(),
+                 arm->getColumn(), binder->getName());
+    }
     plan.atArmEnd.push_back({arm, std::move(owned)});
   }
   for (auto &[key, previous] : saved) {
@@ -483,16 +556,23 @@ void MoveAnalysis::noteUnboundReference(ASTDeRefExpr *deref) {
       RuleToggles::enabled("free-unbound-reference")) {
     // The referent of an owning reference is always Copy, so once it is read
     // or written nothing refers to the allocation.
-    plan.freeAfterUse.insert(deref);
+    if (plan.freeAfterUse.insert(deref).second) {
+      recordSite(DestructionPlan::SiteKind::FreeAfterUse, deref->getLine(),
+                 deref->getColumn(), "*" + render(operand));
+    }
   }
 }
 
 void MoveAnalysis::collectDiscardedPayloads(ASTPattern *pat,
-                                           ASTDeclNode *payload) {
+                                           ASTDeclNode *payload,
+                                           const std::string &tag,
+                                           std::size_t index, ASTCaseArm *arm) {
   if (dynamic_cast<ASTWildcardPattern *>(pat) != nullptr) {
     if (payload != nullptr &&
         classifier->classify(payload) == OwnershipClass::Own) {
       plan.discardedPayloads.insert(pat);
+      recordSite(DestructionPlan::SiteKind::DiscardedPayload, arm->getLine(),
+                 arm->getColumn(), tag + " payload " + std::to_string(index));
     }
     return;
   }
@@ -507,7 +587,8 @@ void MoveAnalysis::collectDiscardedPayloads(ASTPattern *pat,
     }
     auto subs = ctor->getSubPatterns();
     for (std::size_t i = 0; i < subs.size(); ++i) {
-      collectDiscardedPayloads(subs[i], i < params.size() ? params[i] : nullptr);
+      collectDiscardedPayloads(subs[i], i < params.size() ? params[i] : nullptr,
+                               ctor->getTag(), i + 1, arm);
     }
   }
 }

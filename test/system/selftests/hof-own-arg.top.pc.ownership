@@ -12,6 +12,7 @@
 [destruction-summary]
   apply : 0 destroys
   len : 0 destroys
+    line 12   match box         case l
   main : 0 destroys
 
 [ownership-constraints]
@@ -23,6 +24,7 @@
   [ownership] 10:4 local len.l : Own
   [ownership] 11:6 local len.r : Copy
   [move] 12:1 move l (ownership consumed by case)
+  [free] 12:2 match box case l (consumed by the match; freed after the arm)
   [move] 14:1 move t (ownership moved via function argument)
   [move] 14:1 own t (ownership received from the matched payload)
   [ownership] 14:9 local len.h : Copy

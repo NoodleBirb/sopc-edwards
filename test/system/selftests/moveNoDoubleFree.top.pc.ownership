@@ -4,6 +4,7 @@
   local main.q : Own
 [destruction-summary]
   main : 1 destroy
+    line 7    at exit           q
 
 [ownership-constraints]
   [ownership] - function main : Copy
@@ -12,3 +13,4 @@
   [move] 5:1 own p (ownership established by assignment)
   [move] 6:1 move p (ownership moved from RHS variable)
   [move] 6:1 own q (ownership received via move)
+  [destroy] 7:2 at exit q (still Owned at the return)

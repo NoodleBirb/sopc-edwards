@@ -311,11 +311,20 @@ The driver exposes the major compiler products independently:
 | Inferred types | `--ptype` |
 | Call graph | `--pcallgraph=ascii` |
 | Control-flow graphs | `--pcfg=ascii` |
-| Ownership and destruction | `--pownership` |
+| Ownership and destruction (every site, by line) | `--pownership` |
 | Borrow validity | `--pborrow` |
 
 `--constraint` augments type, call-graph, ownership, and borrow views with the
 facts or traces that produced the displayed result.
+
+The ownership view lists, under each function's count of destroy statements,
+every destruction site the plan records (`MoveAnalysis::DestructionPlan::sites`):
+owners freed at exit and binders at the end of an arm, which become destroy
+statements, and the sites code generation executes itself: a dereferenced
+temporary (`free after use`), the box of a consuming match (`match box`), and
+a payload discarded by `_` (`discarded payload`). In the trace, a site that is
+one call to `free` is a `[free]` record; one that destroys a value by its type
+is a `[destroy]` record.
 
 ## Maintained Boundaries
 
