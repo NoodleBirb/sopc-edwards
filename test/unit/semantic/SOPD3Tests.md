@@ -55,7 +55,6 @@ test/unit/semantic/semantic_unit_tests '[D3][cleanup-plan]'
 test/unit/semantic/semantic_unit_tests '~[D3]'
 ```
 
-The fixtures and TOP harness controls can pass before the extension exists.
-Deliverable 3 semantic and view tests are expected to fail until SOP semantic
-support and cleanup-plan inspection are implemented. They are registered
-normally and are neither skipped nor marked as expected failures.
+The semantic and view tests exercise the implemented SOP analyses and cleanup
+plan. They are registered normally, alongside the existing TOP regression
+suite, and are neither skipped nor marked as expected failures.

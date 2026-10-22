@@ -97,6 +97,14 @@ bool LocalNameCollector::visit(ASTDeclStmt *element) {
 
 bool LocalNameCollector::visit(ASTLambdaExpr *element) {
   lambdas.push_back(element);
+  if (element->getFunction()) {
+    for (auto *parameter : element->getParameters())
+      if (curMap.count(parameter->getName()) ||
+          fMap.count(parameter->getName()))
+        throw SemanticError(parameter->getName() +
+                            " shadows an existing declaration in lambda");
+    return false;
+  }
   auto enclosing = curMap;
   std::set<std::string> parameters;
   for (auto *param : element->getParameters()) {

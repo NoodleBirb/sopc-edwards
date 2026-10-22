@@ -1,18 +1,28 @@
-#include <cassert>
-#include <unordered_set>
 #include "TypeInference.h"
-#include "SymbolTable.h"
-#include <algorithm>
+#include "../SemanticLogging.h"
 #include "ASTExpr.h"
+#include "ASTForStmt.h"
+#include "ASTLambdaExpr.h"
+#include "ASTRange.h"
+#include "ASTSequenceExpr.h"
 #include "ASTVariableExpr.h"
 #include "PolyTypeConstraintCollectVisitor.h"
+#include "SemanticError.h"
+#include "SymbolTable.h"
+#include "TopBorrowRef.h"
 #include "TopMu.h"
+#include "TopOwningRef.h"
+#include "TopSequence.h"
 #include "TopSumType.h"
-#include "Unifier.h"
 #include "TypeConstraint.h"
 #include "TypeConstraintCollectVisitor.h"
-#include "../SemanticLogging.h"
+#include "TypeVars.h"
+#include "Unifier.h"
+#include <algorithm>
+#include <cassert>
+#include <functional>
 #include <memory>
+#include <unordered_set>
 
 /* Local name space for DFS visit variables */
 namespace {
@@ -35,6 +45,17 @@ void topoVisit(CallGraph *cg, ASTFunction *f) {
   assert(fPosition != unmarked.end()); // f must be in the unmarked list
   unmarked.erase(fPosition);
 
+  std::function<void(ASTNode *)> lambdaDependencies = [&](ASTNode *node) {
+    if (auto *lambda = dynamic_cast<ASTLambdaExpr *>(node)) {
+      if (lambda->getFunction())
+        topoVisit(cg, lambda->getFunction());
+      return;
+    }
+    for (const auto &child : node->getChildren())
+      lambdaDependencies(child.get());
+  };
+  lambdaDependencies(f);
+
   // visit called functions
   for (auto c : cg->getCallees(f)) {
     topoVisit(cg, c);
@@ -48,9 +69,9 @@ void topoVisit(CallGraph *cg, ASTFunction *f) {
  * To determine if a function is recursive call with f==g.
  * Uses a visited set to avoid infinite recursion on cyclic call graphs.
  */
-static bool mayIndirectlyCallHelper(CallGraph *cg, ASTFunction *f,
-                                    ASTFunction *g,
-                                    std::unordered_set<ASTFunction *> &visited) {
+static bool
+mayIndirectlyCallHelper(CallGraph *cg, ASTFunction *f, ASTFunction *g,
+                        std::unordered_set<ASTFunction *> &visited) {
   if (!visited.insert(f).second)
     return false; // already explored from f
   for (auto c : cg->getCallees(f)) {
@@ -151,13 +172,16 @@ std::shared_ptr<TypeInference> runPoly(ASTProgram *ast, SymbolTable *symbols,
 
   for (auto f : nonRecursiveFuncs) {
     SEMANTIC_LOG(2, "type-inference")
-      << "function=" << f->getName() << " stage=polymorphic";
+        << "function=" << f->getName() << " stage=polymorphic";
 
     PolyTypeConstraintCollectVisitor polyVisitor(symbols, cg, unifier);
     f->accept(&polyVisitor);
 
     unifier->add(polyVisitor.getCollectedConstraints());
+    unifier->addIterations(polyVisitor.getIterationConstraints());
     unifier->solve();
+    unifier->rememberIterations(f->getDecl(),
+                                polyVisitor.getIterationConstraints());
   }
 
   SEMANTIC_LOG(2, "type-inference") << "stage=residual-monomorphic start";
@@ -172,6 +196,9 @@ std::shared_ptr<TypeInference> runPoly(ASTProgram *ast, SymbolTable *symbols,
       TypeConstraintCollectVisitor monoVisitor(symbols);
       f->accept(&monoVisitor);
       unifier->add(monoVisitor.getCollectedConstraints());
+      unifier->addIterations(monoVisitor.getIterationConstraints());
+      unifier->rememberIterations(f->getDecl(),
+                                  monoVisitor.getIterationConstraints());
     }
   }
 
@@ -205,11 +232,25 @@ std::shared_ptr<TypeInference> runMono(ASTProgram *ast, SymbolTable *symbols) {
  * unifier instance.  The unifier then records the inferred type results that
  * can be subsequently queried.
  */
-std::shared_ptr<TypeInference> TypeInference::run(ASTProgram *ast,
-                                                  CallGraph *cg,
-                                                  SymbolTable *symbols) {
+std::shared_ptr<TypeInference>
+TypeInference::run(ASTProgram *ast, CallGraph *cg, SymbolTable *symbols) {
   SEMANTIC_LOG(1, "type-inference") << "start";
   auto result = runPoly(ast, symbols, cg);
+  std::function<void(ASTNode *)> validate = [&](ASTNode *node) {
+    if (dynamic_cast<ASTLambdaExpr *>(node))
+      return;
+    if (auto *literal = dynamic_cast<ASTSequenceExpr *>(node)) {
+      auto type = result->getInferredType(static_cast<ASTExpr *>(literal));
+      if (!TypeVars::collect(type.get()).empty())
+        throw SemanticError(
+            "sequence literal element type is undetermined on line " +
+            std::to_string(literal->getLine()));
+    }
+    for (const auto &child : node->getChildren())
+      validate(child.get());
+  };
+  for (auto *function : ast->getFunctions())
+    validate(function);
   SEMANTIC_LOG(1, "type-inference")
       << "complete functions=" << symbols->getFunctions().size();
   return result;
@@ -221,6 +262,9 @@ std::shared_ptr<TopType> TypeInference::getInferredType(ASTDeclNode *node) {
 };
 
 std::shared_ptr<TopType> TypeInference::getInferredType(ASTExpr *node) {
+  if (auto *variable = dynamic_cast<ASTVariableExpr *>(node))
+    if (auto *decl = symbols->getDeclaration(variable))
+      return getInferredType(decl);
   auto var = std::make_shared<TopVar>(node);
   return unifier->inferred(var);
 };
@@ -276,6 +320,18 @@ std::string TypeInference::getInferredTypeDisplay(ASTSumTypeDecl *node) {
 }
 
 void TypeInference::print(std::ostream &s) {
+  if (!symbols->getLambdas().empty()) {
+    s << "\nLambdas : {\n";
+    for (auto *lambda : symbols->getLambdas()) {
+      s << "  " << *lambda << " @" << lambda->getLine() << ":"
+        << lambda->getColumn() << " : "
+        << *getInferredType(static_cast<ASTExpr *>(lambda)) << "\n";
+      for (auto *parameter : lambda->getParameters())
+        s << "    " << parameter->getName() << " : "
+          << *getInferredType(parameter) << "\n";
+    }
+    s << "}\n";
+  }
   auto typeNames = symbols->getSumTypes();
   if (!typeNames.empty()) {
     s << "\nTypes : {\n";

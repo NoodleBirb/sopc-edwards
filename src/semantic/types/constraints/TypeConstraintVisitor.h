@@ -2,6 +2,7 @@
 
 #include "ASTVisitor.h"
 #include "ConstraintHandler.h"
+#include "IterationConstraint.h"
 #include "SymbolTable.h"
 #include "TopType.h"
 #include <memory>
@@ -21,6 +22,9 @@
  */
 class TypeConstraintVisitor : public ASTVisitor {
 public:
+  const std::vector<IterationConstraint> &getIterationConstraints() const {
+    return iterations;
+  }
   TypeConstraintVisitor() = delete;
 
   /**
@@ -52,6 +56,13 @@ public:
   void endVisit(ASTOutputStmt *element) override;
   void endVisit(ASTBorrowExpr *element) override;
   void endVisit(ASTWhileStmt *element) override;
+  void endVisit(ASTSequenceExpr *element) override;
+  void endVisit(ASTIndexExpr *element) override;
+  void endVisit(ASTLengthExpr *element) override;
+  void endVisit(ASTSliceExpr *element) override;
+  void endVisit(ASTRange *element) override;
+  void endVisit(ASTForStmt *element) override;
+  void endVisit(ASTLambdaExpr *element) override;
 
   // TOP extensions
   bool visit(ASTSumTypeDecl *element) override;
@@ -59,6 +70,7 @@ public:
   void endVisit(ASTCaseStmt *element) override;
 
 protected:
+  std::vector<IterationConstraint> iterations;
   std::shared_ptr<ConstraintHandler> constraintHandler;
   SymbolTable *symbolTable;
   std::shared_ptr<TopType> astToVar(ASTNode *n);
@@ -69,7 +81,7 @@ protected:
    * \param slotType  The type of the payload slot that \p pat is matching.
    */
   void constrainPattern(ASTPattern *pat, std::shared_ptr<TopType> slotType,
-                         ASTNode *anchor);
+                        ASTNode *anchor);
 
 private:
   std::stack<ASTDeclNode *> scope;

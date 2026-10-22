@@ -13,6 +13,7 @@ protected:
   Substituter() = default;
 
 public:
+  void endVisit(TopSequence *element) override;
   Substituter(TopVar *t, std::shared_ptr<TopType> s)
       : target(t), substitution(s) {}
 

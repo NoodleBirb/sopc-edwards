@@ -1,6 +1,6 @@
 #include "DestructionPass.h"
-#include "RuleToggles.h"
 #include "../SemanticLogging.h"
+#include "RuleToggles.h"
 
 #include "ASTBlockStmt.h"
 #include "ASTCaseArm.h"
@@ -11,16 +11,24 @@
 #include <vector>
 
 void DestructionPass::run(ASTProgram *ast,
-                          const MoveAnalysis::DestructionPlan &plan) {
+                          const MoveAnalysis::DestructionPlan &plan,
+                          const ::DestructionPlan *detail) {
   SEMANTIC_LOG(1, "destruction") << "start";
 
   if (RuleToggles::enabled("destroy-at-exit")) {
     for (const auto &[function, owners] : plan.atExit) {
       for (auto *decl : owners) {
         SEMANTIC_LOG(2, "destruction")
-            << "function=" << function->getName() << " insert variable="
-            << decl->getName();
-        function->insertBeforeReturn(std::make_shared<ASTDestroyStmt>(decl));
+            << "function=" << function->getName()
+            << " insert variable=" << decl->getName();
+        std::shared_ptr<CleanupAction> action;
+        if (detail)
+          for (const auto &candidate : detail->getActions())
+            if (candidate->owner == decl && candidate->function == function &&
+                candidate->kind == CleanupAction::Kind::Destroy)
+              action = candidate;
+        function->insertBeforeReturn(
+            std::make_shared<ASTDestroyStmt>(decl, action));
       }
     }
   }
@@ -28,7 +36,8 @@ void DestructionPass::run(ASTProgram *ast,
   if (RuleToggles::enabled("destroy-arm-binders")) {
     for (const auto &[arm, binders] : plan.atArmEnd) {
       // The binders are in scope only inside the arm, so their destroys go at
-      // the end of the arm's body: wrap the body in a block that ends with them.
+      // the end of the arm's body: wrap the body in a block that ends with
+      // them.
       std::shared_ptr<ASTStmt> body;
       for (auto &child : arm->getChildren()) {
         if (child.get() == arm->getBody()) {
@@ -48,4 +57,18 @@ void DestructionPass::run(ASTProgram *ast,
   }
 
   SEMANTIC_LOG(1, "destruction") << "complete";
+}
+
+std::shared_ptr<::DestructionPlan> DestructionPass::run(
+    ASTProgram *ast, SymbolTable *symbols, OwnershipClassifier *classifier,
+    FunctionEffectSummaries *effects, const MoveAnalysis *moves) {
+  std::unique_ptr<MoveAnalysis> computed;
+  if (!moves) {
+    computed =
+        std::make_unique<MoveAnalysis>(ast, symbols, classifier, effects);
+    moves = computed.get();
+  }
+  auto plan = ::DestructionPlan::build(ast, symbols, effects, *moves);
+  run(ast, *plan, plan.get());
+  return plan;
 }

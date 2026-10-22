@@ -1,18 +1,38 @@
-#include <cassert>
 #include "PolyTypeConstraintVisitor.h"
 #include "../../SemanticLogging.h"
+#include "ASTLambdaExpr.h"
 #include "ASTVariableExpr.h"
 #include "FreshAlphaCopier.h"
-#include "TypeVars.h"
 #include "TopMu.h"
 #include "TopTypeVisitor.h"
+#include "TypeVars.h"
 #include "loguru.hpp"
+#include <cassert>
+static bool containsTopMu(TopType *t);
+
+void PolyTypeConstraintVisitor::endVisit(ASTLambdaExpr *lambda) {
+  if (!lambda->getFunction())
+    return;
+  auto generic = unifier->inferred(astToVar(lambda->getFunction()->getDecl()));
+  if (dynamic_cast<TopFunction *>(generic.get()) &&
+      !containsTopMu(generic.get())) {
+    auto facts =
+        unifier->copyIterations(lambda->getFunction()->getDecl(), lambda);
+    iterations.insert(iterations.end(), facts.begin(), facts.end());
+    constraintHandler->handle(astToVar(lambda),
+                              FreshAlphaCopier::copy(generic.get(), lambda));
+  } else
+    TypeConstraintVisitor::endVisit(lambda);
+}
 
 /// Returns true if \p t contains any TopMu node at any nesting level.
 static bool containsTopMu(TopType *t) {
   struct Finder : public TopTypeVisitor {
     bool found = false;
-    bool visit(TopMu *) override { found = true; return false; }
+    bool visit(TopMu *) override {
+      found = true;
+      return false;
+    }
   } finder;
   t->accept(&finder);
   return finder.found;
@@ -22,7 +42,7 @@ PolyTypeConstraintVisitor::PolyTypeConstraintVisitor(
     SymbolTable *st, CallGraph *cg, std::shared_ptr<Unifier> u,
     std::unique_ptr<ConstraintHandler> handler)
     : TypeConstraintVisitor(st, std::move(handler)), callGraph(cg),
-      unifier(u){};
+      unifier(u) {};
 
 /*! \brief Polymorphic type constraints for function application.
  *
@@ -62,11 +82,13 @@ void PolyTypeConstraintVisitor::endVisit(ASTFunAppExpr *element) {
    *
    * The "direct named call" check prevents incorrect poly instantiation inside
    * higher-order functions (e.g., apply(f,v){return f(v);}) where CFA resolves
-   * `f` to several possibly-poly functions that would generate conflicting types.
+   * `f` to several possibly-poly functions that would generate conflicting
+   * types.
    */
   auto *calleeExpr = dynamic_cast<ASTVariableExpr *>(element->getFunction());
-  bool isDirectNamedCall = calleeExpr != nullptr &&
-                           symbolTable->getFunction(calleeExpr->getName()) != nullptr;
+  bool isDirectNamedCall =
+      calleeExpr != nullptr &&
+      symbolTable->getFunction(calleeExpr->getName()) != nullptr;
 
   auto calledFuns = callGraph->getCalledFuns(element);
 
@@ -102,14 +124,17 @@ void PolyTypeConstraintVisitor::endVisit(ASTFunAppExpr *element) {
       // which the TermUnifier cannot handle.  Fall through to mono instead.
       auto freeVars = TypeVars::collect(genericType.get());
       if (!freeVars.empty() && !containsTopMu(genericType.get())) {
+        auto facts = unifier->copyIterations(fDecl, element);
+        iterations.insert(iterations.end(), facts.begin(), facts.end());
         auto copyType = FreshAlphaCopier::copy(genericType.get(), element);
 
-        auto instantiatedType = std::dynamic_pointer_cast<TopFunction>(copyType);
+        auto instantiatedType =
+            std::dynamic_pointer_cast<TopFunction>(copyType);
         assert(instantiatedType != nullptr);
 
         SEMANTIC_LOG(2, "type-inference")
-          << "instantiate function=" << fName << " generic=" << *genericType
-          << " instantiated=" << *instantiatedType;
+            << "instantiate function=" << fName << " generic=" << *genericType
+            << " instantiated=" << *instantiatedType;
 
         // Polymorphic function application
         constraintHandler->handle(

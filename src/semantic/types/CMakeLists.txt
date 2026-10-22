@@ -2,6 +2,7 @@ add_library(types)
 target_sources(
   types
   PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/concrete/TopSequence.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/TypeInference.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/TypeInference.h
     ${CMAKE_CURRENT_SOURCE_DIR}/concrete/TopAlpha.cpp

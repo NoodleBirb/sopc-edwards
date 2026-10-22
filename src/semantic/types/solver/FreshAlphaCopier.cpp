@@ -1,4 +1,6 @@
 #include "FreshAlphaCopier.h"
+#include "ASTNode.h"
+#include <sstream>
 
 /*
  * The Copier inherits all of the methods above from Substituter, but
@@ -12,6 +14,18 @@ std::shared_ptr<TopType> FreshAlphaCopier::copy(TopType *t, ASTNode *c) {
 }
 
 void FreshAlphaCopier::endVisit(TopAlpha *element) {
-  visitedTypes.push_back(std::make_shared<TopAlpha>(element->getNode(), context,
-                                                    element->getName()));
+  auto name = element->getName();
+  // Separate inner instantiations must stay distinct when copying an enclosing
+  // scheme. Source spans keep the resulting inspection names deterministic.
+  if (auto *previous = element->getContext(); previous && previous != context) {
+    name += "@" + std::to_string(previous->getLine()) + ":" +
+            std::to_string(previous->getColumn());
+    if (!previous->getLine()) {
+      std::ostringstream expression;
+      expression << *previous;
+      name += ":" + expression.str();
+    }
+  }
+  visitedTypes.push_back(
+      std::make_shared<TopAlpha>(element->getNode(), context, name));
 }

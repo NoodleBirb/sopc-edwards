@@ -1,10 +1,11 @@
 #include "Copier.h"
-#include "FreshAlphaCopier.h"
-#include "TopInt.h"
-#include "TopVar.h"
-#include "TopAlpha.h"
-#include "TopOwningRef.h"
 #include "ASTNumberExpr.h"
+#include "FreshAlphaCopier.h"
+#include "TopAlpha.h"
+#include "TopFunction.h"
+#include "TopInt.h"
+#include "TopOwningRef.h"
+#include "TopVar.h"
 
 #include <catch2/catch_test_macros.hpp>
 #include <memory>
@@ -15,7 +16,8 @@ static ASTNumberExpr nodeB(20);
 
 // ==================== Copier ====================
 
-TEST_CASE("Copier: copy nullary type produces same functor, different pointer", "[Copier]") {
+TEST_CASE("Copier: copy nullary type produces same functor, different pointer",
+          "[Copier]") {
   auto orig = std::make_shared<TopInt>();
   auto copy = Copier::copy(orig);
   REQUIRE(copy->getFunctor() == "int");
@@ -33,10 +35,12 @@ TEST_CASE("Copier: copy compound type — inner nodes also fresh", "[Copier]") {
   auto origRef = std::dynamic_pointer_cast<TopOwningRef>(orig);
   auto copyRef = std::dynamic_pointer_cast<TopOwningRef>(copy);
   REQUIRE(copyRef != nullptr);
-  REQUIRE(copyRef->getReferencedType().get() != origRef->getReferencedType().get());
+  REQUIRE(copyRef->getReferencedType().get() !=
+          origRef->getReferencedType().get());
 }
 
-TEST_CASE("Copier: copy TopVar — node pointer preserved, wrapper is new", "[Copier]") {
+TEST_CASE("Copier: copy TopVar — node pointer preserved, wrapper is new",
+          "[Copier]") {
   auto orig = std::make_shared<TopVar>(&nodeA);
   auto copy = Copier::copy(orig);
 
@@ -46,7 +50,8 @@ TEST_CASE("Copier: copy TopVar — node pointer preserved, wrapper is new", "[Co
   REQUIRE(copyVar->getNode() == &nodeA);
 }
 
-TEST_CASE("Copier: copy TopAlpha — node and name preserved, wrapper is new", "[Copier]") {
+TEST_CASE("Copier: copy TopAlpha — node and name preserved, wrapper is new",
+          "[Copier]") {
   auto orig = std::make_shared<TopAlpha>(&nodeA, std::string("β"));
   auto copy = Copier::copy(orig);
 
@@ -76,14 +81,18 @@ TEST_CASE("FreshAlphaCopier: alpha context is replaced", "[FreshAlphaCopier]") {
   REQUIRE(copy.get() != orig.get());
 }
 
-TEST_CASE("FreshAlphaCopier: type with no alphas is returned structurally equal", "[FreshAlphaCopier]") {
+TEST_CASE(
+    "FreshAlphaCopier: type with no alphas is returned structurally equal",
+    "[FreshAlphaCopier]") {
   auto orig = std::make_shared<TopInt>();
   auto copy = FreshAlphaCopier::copy(orig.get(), &nodeB);
   REQUIRE(copy->getFunctor() == "int");
   REQUIRE(copy.get() != orig.get());
 }
 
-TEST_CASE("FreshAlphaCopier: two copies with different contexts produce non-equal alphas", "[FreshAlphaCopier]") {
+TEST_CASE("FreshAlphaCopier: two copies with different contexts produce "
+          "non-equal alphas",
+          "[FreshAlphaCopier]") {
   auto orig = std::make_shared<TopAlpha>(&nodeA, std::string("γ"));
 
   auto copy1 = FreshAlphaCopier::copy(orig.get(), &nodeA);
@@ -95,4 +104,20 @@ TEST_CASE("FreshAlphaCopier: two copies with different contexts produce non-equa
   REQUIRE(alpha2 != nullptr);
   // Different context → TopAlpha::operator== returns false
   REQUIRE(!(*alpha1 == *alpha2));
+}
+
+TEST_CASE("FreshAlphaCopier: enclosing copies preserve independent inner "
+          "instantiations",
+          "[FreshAlphaCopier]") {
+  ASTNumberExpr outer(30);
+  auto first = std::make_shared<TopAlpha>(&nodeA, &nodeA, "element");
+  auto second = std::make_shared<TopAlpha>(&nodeA, &nodeB, "element");
+  auto scheme = std::make_shared<TopFunction>(
+      std::vector<std::shared_ptr<TopType>>{first, second}, first);
+  auto copy = std::dynamic_pointer_cast<TopFunction>(
+      FreshAlphaCopier::copy(scheme.get(), &outer));
+  REQUIRE(copy);
+  const auto params = copy->getParamTypes();
+  REQUIRE(*params[0] != *params[1]);
+  REQUIRE(*params[0] == *copy->getReturnType());
 }

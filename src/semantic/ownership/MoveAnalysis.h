@@ -6,6 +6,7 @@
 #include "OwnershipClassifier.h"
 #include "SymbolTable.h"
 
+#include <functional>
 #include <map>
 #include <set>
 #include <string>
@@ -86,7 +87,13 @@ public:
     /// AtArmEnd become destroy statements; the rest are executed by code
     /// generation. FreeAfterUse and MatchBox are always one call to free;
     /// the others destroy a value by its type.
-    enum class SiteKind { AtExit, AtArmEnd, FreeAfterUse, MatchBox, DiscardedPayload };
+    enum class SiteKind {
+      AtExit,
+      AtArmEnd,
+      FreeAfterUse,
+      MatchBox,
+      DiscardedPayload
+    };
 
     /// One destruction site, for the views: the same facts as the entries
     /// above, in one record, in the order the walk found them.
@@ -113,10 +120,27 @@ public:
   /*! \brief Returns retained trace events from the most recent run. */
   static const std::vector<MoveTraceEvent> &getLastTrace();
 
+  const std::map<ASTDeclNode *, StateMap> &getExitStates() const {
+    return exitStates;
+  }
+  static StateMap checkInstantiation(
+      ASTFunction *function, SymbolTable *symbols,
+      OwnershipClassifier *classifier, FunctionEffectSummaries *effects,
+      std::map<ASTDeclNode *, std::shared_ptr<TopType>> types,
+      std::function<std::shared_ptr<TopType>(ASTExpr *)> expressionType);
+
   /*! \brief Where the checked program needs destruction. */
   const DestructionPlan &destructionPlan() const { return plan; }
 
 private:
+  MoveAnalysis(SymbolTable *symbols, OwnershipClassifier *classifier,
+               FunctionEffectSummaries *effects);
+  std::map<ASTDeclNode *, StateMap> exitStates;
+  std::map<ASTDeclNode *, std::shared_ptr<TopType>> instantiatedTypes;
+  std::function<std::shared_ptr<TopType>(ASTExpr *)> instantiatedExpressionType;
+  OwnershipClass ownershipOf(ASTDeclNode *decl) const;
+  std::set<ASTDeclNode *> loopProtectedOwners;
+  std::set<ASTDeclNode *> borrowOwners(ASTExpr *expression) const;
   SymbolTable *sym;
   OwnershipClassifier *classifier;
   FunctionEffectSummaries *functionEffects;
@@ -192,6 +216,4 @@ private:
    *  \return nullptr if the name is not found.
    */
   ASTDeclNode *resolveVar(const std::string &name) const;
-
-
 };

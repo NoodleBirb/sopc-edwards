@@ -24,6 +24,10 @@ class TypeInference {
   std::shared_ptr<Unifier> unifier;
 
 public:
+  std::vector<IterationConstraint>
+  getIterationConstraints(ASTDeclNode *function) {
+    return unifier->iterationsFor(function);
+  }
   TypeInference(SymbolTable *s, std::shared_ptr<Unifier> u)
       : symbols(s), unifier(u) {}
 

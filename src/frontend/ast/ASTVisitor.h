@@ -22,6 +22,9 @@
  */
 class ASTVisitor {
 public:
+  // Source renderers need the original body; semantic visitors analyze the
+  // shared function representation once at program scope instead.
+  virtual bool visitMaterializedLambdaBody() const { return false; }
   virtual bool visit(ASTSequenceExpr *element) { return true; }
   virtual void endVisit(ASTSequenceExpr *element) {}
   virtual bool visit(ASTSliceExpr *element) { return true; }

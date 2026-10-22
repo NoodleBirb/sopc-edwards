@@ -2,13 +2,14 @@
 
 #include "ASTNode.h"
 #include "ASTProgram.h"
+#include "DestructionPlan.h"
 #include "FunctionEffectSummaries.h"
 #include "MoveAnalysis.h"
 #include "OwnershipClassifier.h"
 #include "SymbolTable.h"
 #include "TypeInference.h"
-#include "cfg/IntraproceduralCFGs.h"
 #include "cfa/CallGraph.h" //call graph builder header
+#include "cfg/IntraproceduralCFGs.h"
 #include <memory>
 
 /*! \class SemanticAnalysis
@@ -26,7 +27,7 @@ class SemanticAnalysis {
   std::shared_ptr<CallGraph> callGraph;
   std::shared_ptr<OwnershipClassifier> ownershipClassifier;
   std::shared_ptr<FunctionEffectSummaries> functionEffectSummaries;
-  std::shared_ptr<MoveAnalysis::DestructionPlan> destructionPlan;
+  std::shared_ptr<::DestructionPlan> destructionPlan;
 
 public:
   SemanticAnalysis(std::shared_ptr<SymbolTable> s,
@@ -35,16 +36,16 @@ public:
                    std::shared_ptr<CallGraph> cg,
                    std::shared_ptr<OwnershipClassifier> oc,
                    std::shared_ptr<FunctionEffectSummaries> fe,
-                   std::shared_ptr<MoveAnalysis::DestructionPlan> plan = nullptr)
+                   std::shared_ptr<::DestructionPlan> plan = nullptr)
       : symTable(std::move(s)), intraproceduralCFGs(std::move(cfgs)),
-        typeResults(std::move(t)),
-        callGraph(std::move(cg)), ownershipClassifier(std::move(oc)),
+        typeResults(std::move(t)), callGraph(std::move(cg)),
+        ownershipClassifier(std::move(oc)),
         functionEffectSummaries(std::move(fe)),
         destructionPlan(std::move(plan)) {}
 
   /*! \brief Where destruction and frees go, decided by MoveAnalysis. Code
    *  generation executes it; it decides nothing about ownership itself. */
-  const MoveAnalysis::DestructionPlan *getDestructionPlan() const {
+  ::DestructionPlan *getDestructionPlan() const {
     return destructionPlan.get();
   }
 
@@ -57,7 +58,8 @@ public:
    * \param ast The program AST
    * \return The unique pointer to the semantic analysis structure.
    */
-  [[nodiscard]] static std::shared_ptr<SemanticAnalysis> analyze(ASTProgram *ast);
+  [[nodiscard]] static std::shared_ptr<SemanticAnalysis>
+  analyze(ASTProgram *ast);
 
   /*! \fn getSymbolTable
    *  \brief Returns the symbol table computed for the program.

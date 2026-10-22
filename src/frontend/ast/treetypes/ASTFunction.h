@@ -14,6 +14,7 @@ class ASTFunction : public ASTNode {
   std::vector<std::shared_ptr<ASTDeclStmt>> DECLS;
   std::vector<std::shared_ptr<ASTStmt>> BODY;
   bool ISPOLY;
+  bool lambdaFunction = false;
 
 public:
   std::vector<std::shared_ptr<ASTNode>> getChildren() override;
@@ -27,8 +28,12 @@ public:
   ASTDeclNode *getDecl() const { return DECL.get(); };
   const std::string &getName() const { return DECL->getName(); };
   //! Append a synthetic local declaration (used by for-loop desugaring).
-  void addDecl(std::shared_ptr<ASTDeclStmt> d) { DECLS.push_back(std::move(d)); }
+  void addDecl(std::shared_ptr<ASTDeclStmt> d) {
+    DECLS.push_back(std::move(d));
+  }
   bool isPoly() const { return ISPOLY; };
+  bool isLambdaFunction() const { return lambdaFunction; }
+  void setLambdaFunction() { lambdaFunction = true; }
   std::vector<ASTDeclNode *> getFormals() const;
   std::vector<ASTDeclStmt *> getDeclarations() const;
   std::vector<ASTStmt *> getStmts() const;

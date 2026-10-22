@@ -2,6 +2,7 @@
 
 #include "ASTDeclNode.h"
 #include "ASTStmt.h"
+struct CleanupAction;
 
 /*!
  * \brief Synthetic statement inserted by the Destruction Pass.
@@ -16,10 +17,16 @@
  */
 class ASTDestroyStmt : public ASTStmt {
   ASTDeclNode *VAR; // non-owning — lifetime managed by the AST tree
+  std::shared_ptr<CleanupAction> cleanup;
 
 public:
-  explicit ASTDestroyStmt(ASTDeclNode *var) : VAR(var) {}
+  explicit ASTDestroyStmt(ASTDeclNode *var,
+                          std::shared_ptr<CleanupAction> action = nullptr)
+      : VAR(var), cleanup(std::move(action)) {}
   ASTDeclNode *getVar() const { return VAR; }
+  const std::shared_ptr<CleanupAction> &getCleanupAction() const {
+    return cleanup;
+  }
   void accept(ASTVisitor *visitor) override;
   std::vector<std::shared_ptr<ASTNode>> getChildren() override;
 

@@ -15,7 +15,10 @@ std::vector<ASTSumTypeDecl *> ASTProgram::getTypedecls() const {
 }
 
 std::vector<ASTFunction *> ASTProgram::getFunctions() const {
-  return rawRefs(FUNCTIONS);
+  auto result = rawRefs(FUNCTIONS);
+  auto semantic = rawRefs(semanticFunctions);
+  result.insert(result.end(), semantic.begin(), semantic.end());
+  return result;
 }
 
 ASTFunction *ASTProgram::findFunctionByName(std::string name) {
@@ -52,5 +55,3 @@ std::vector<std::shared_ptr<ASTNode>> ASTProgram::getChildren() {
     children.push_back(function);
   return children;
 }
-
-

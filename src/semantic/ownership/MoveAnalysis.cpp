@@ -1,29 +1,35 @@
-#include "ASTSumCtorExpr.h"
 #include "MoveAnalysis.h"
-#include "RuleToggles.h"
 #include "../SemanticLogging.h"
+#include "ASTSumCtorExpr.h"
+#include "RuleToggles.h"
 
-#include "ASTAssignStmt.h"
 #include "ASTAllocExpr.h"
-#include "ASTBorrowExpr.h"
+#include "ASTAssignStmt.h"
 #include "ASTBlockStmt.h"
+#include "ASTBorrowExpr.h"
 #include "ASTCaseArm.h"
 #include "ASTCaseStmt.h"
 #include "ASTCtorPattern.h"
-#include "ASTSumTypeDecl.h"
-#include "ASTSumVariant.h"
-#include "ASTWildcardPattern.h"
 #include "ASTDeRefExpr.h"
 #include "ASTErrorStmt.h"
-#include "ASTFunction.h"
+#include "ASTForStmt.h"
 #include "ASTFunAppExpr.h"
+#include "ASTFunction.h"
 #include "ASTIfStmt.h"
+#include "ASTIndexExpr.h"
+#include "ASTLambdaExpr.h"
 #include "ASTOutputStmt.h"
 #include "ASTProgram.h"
 #include "ASTReturnStmt.h"
+#include "ASTSequenceExpr.h"
+#include "ASTSumTypeDecl.h"
+#include "ASTSumVariant.h"
 #include "ASTVariableExpr.h"
 #include "ASTWhileStmt.h"
+#include "ASTWildcardPattern.h"
 #include "SemanticError.h"
+#include "TopBorrowRef.h"
+#include "TypeInference.h"
 
 #include <algorithm>
 #include <optional>
@@ -32,6 +38,27 @@
 
 std::vector<MoveAnalysis::MoveTraceEvent> MoveAnalysis::lastTrace;
 
+MoveAnalysis::MoveAnalysis(SymbolTable *symbols, OwnershipClassifier *classes,
+                           FunctionEffectSummaries *effects)
+    : sym(symbols), classifier(classes), functionEffects(effects) {}
+MoveAnalysis::StateMap MoveAnalysis::checkInstantiation(
+    ASTFunction *function, SymbolTable *symbols, OwnershipClassifier *classes,
+    FunctionEffectSummaries *effects,
+    std::map<ASTDeclNode *, std::shared_ptr<TopType>> types,
+    std::function<std::shared_ptr<TopType>(ASTExpr *)> expressionType) {
+  MoveAnalysis check(symbols, classes, effects);
+  check.instantiatedTypes = std::move(types);
+  check.instantiatedExpressionType = std::move(expressionType);
+  check.analyzeFunction(function);
+  return check.exitStates.at(function->getDecl());
+}
+OwnershipClass MoveAnalysis::ownershipOf(ASTDeclNode *decl) const {
+  auto found = instantiatedTypes.find(decl);
+  return found == instantiatedTypes.end()
+             ? classifier->classify(decl)
+             : OwnershipClassifier::classifyType(found->second.get());
+}
+
 // ---------------------------------------------------------------------------
 // Constructor: run analysis over every function.
 // ---------------------------------------------------------------------------
@@ -39,14 +66,13 @@ std::vector<MoveAnalysis::MoveTraceEvent> MoveAnalysis::lastTrace;
 MoveAnalysis::MoveAnalysis(ASTProgram *ast, SymbolTable *sym,
                            OwnershipClassifier *oc,
                            FunctionEffectSummaries *effects)
-  : sym(sym), classifier(oc), functionEffects(effects) {
+    : sym(sym), classifier(oc), functionEffects(effects) {
   SEMANTIC_LOG(1, "move-analysis") << "start";
   for (auto *f : ast->getFunctions()) {
     analyzeFunction(f);
   }
   lastTrace = trace;
-  SEMANTIC_LOG(1, "move-analysis")
-      << "complete events=" << trace.size();
+  SEMANTIC_LOG(1, "move-analysis") << "complete events=" << trace.size();
 }
 
 const std::vector<MoveAnalysis::MoveTraceEvent> &MoveAnalysis::getLastTrace() {
@@ -95,7 +121,7 @@ const char *siteReason(MoveAnalysis::DestructionPlan::SiteKind kind) {
 const char *siteLabel(MoveAnalysis::DestructionPlan::SiteKind kind) {
   using Kind = MoveAnalysis::DestructionPlan::SiteKind;
   return (kind == Kind::FreeAfterUse || kind == Kind::MatchBox) ? "free"
-                                                                 : "destroy";
+                                                                : "destroy";
 }
 
 std::string render(const ASTNode *node) {
@@ -113,6 +139,7 @@ void MoveAnalysis::recordSite(DestructionPlan::SiteKind kind, int line,
 }
 
 void MoveAnalysis::analyzeFunction(ASTFunction *f) {
+  loopProtectedOwners.clear();
   currentFuncDecl = f->getDecl();
   currentFunction = f;
 
@@ -121,7 +148,7 @@ void MoveAnalysis::analyzeFunction(ASTFunction *f) {
   // it starts Owned and is subject to the same checks as a local.
   StateMap state;
   for (auto *param : f->getFormals()) {
-    if (classifier->classify(param) == OwnershipClass::Own) {
+    if (ownershipOf(param) == OwnershipClass::Own) {
       state[param] = OwnershipState::Owned;
     }
   }
@@ -130,6 +157,8 @@ void MoveAnalysis::analyzeFunction(ASTFunction *f) {
   for (auto *stmt : f->getStmts()) {
     state = analyzeStmt(stmt, std::move(state));
   }
+
+  exitStates[currentFuncDecl] = state;
 
   // Whatever is still Owned at the exit is destroyed there, in name order.
   std::vector<ASTDeclNode *> owned;
@@ -157,8 +186,21 @@ void MoveAnalysis::analyzeFunction(ASTFunction *f) {
 // Statement transfer function
 // ---------------------------------------------------------------------------
 
-MoveAnalysis::StateMap MoveAnalysis::analyzeStmt(ASTStmt *stmt, StateMap state) {
+MoveAnalysis::StateMap MoveAnalysis::analyzeStmt(ASTStmt *stmt,
+                                                 StateMap state) {
   movedInStmt.clear();
+
+  if (auto *loop = dynamic_cast<ASTForStmt *>(stmt)) {
+    evalExpr(loop->getInput(), state);
+    evalExpr(loop->getStep(), state);
+    auto saved = loopProtectedOwners;
+    auto owners = borrowOwners(dynamic_cast<ASTExpr *>(loop->getInput()));
+    loopProtectedOwners.insert(owners.begin(), owners.end());
+    auto body = analyzeStmt(loop->getBody(), state);
+    loopProtectedOwners = std::move(saved);
+    assertLoopInvariant(state, body, loop->getLine());
+    return state;
+  }
 
   // Assignment
   if (auto *assign = dynamic_cast<ASTAssignStmt *>(stmt)) {
@@ -178,10 +220,9 @@ MoveAnalysis::StateMap MoveAnalysis::analyzeStmt(ASTStmt *stmt, StateMap state) 
   if (auto *ifStmt = dynamic_cast<ASTIfStmt *>(stmt)) {
     evalExpr(ifStmt->getCondition(), state);
     auto thenState = analyzeStmt(ifStmt->getThen(), state);
-    StateMap elseState =
-        (ifStmt->getElse() != nullptr)
-            ? analyzeStmt(ifStmt->getElse(), state)
-            : state; // implicit else: state unchanged
+    StateMap elseState = (ifStmt->getElse() != nullptr)
+                             ? analyzeStmt(ifStmt->getElse(), state)
+                             : state; // implicit else: state unchanged
     return joinStates({thenState, elseState});
   }
 
@@ -204,7 +245,7 @@ MoveAnalysis::StateMap MoveAnalysis::analyzeStmt(ASTStmt *stmt, StateMap state) 
   if (auto *retStmt = dynamic_cast<ASTReturnStmt *>(stmt)) {
     auto *retVar = dynamic_cast<ASTVariableExpr *>(retStmt->getArg());
     ASTDeclNode *decl = retVar ? resolveVar(retVar->getName()) : nullptr;
-    if (decl && classifier->classify(decl) == OwnershipClass::Own) {
+    if (decl && ownershipOf(decl) == OwnershipClass::Own) {
       consumeVar(retVar, decl, state, "ownership moved by return", "return");
     } else {
       evalExpr(retStmt->getArg(), state);
@@ -227,11 +268,10 @@ MoveAnalysis::StateMap MoveAnalysis::analyzeStmt(ASTStmt *stmt, StateMap state) 
     // Matching an owned by-value scrutinee consumes it: its payloads are moved
     // out into the arm bindings and its box is freed by the match. A borrowed
     // scrutinee (`case *p`) is not consumed.
-    auto *scrutVar =
-        dynamic_cast<ASTVariableExpr *>(caseStmt->getCaseExpr());
+    auto *scrutVar = dynamic_cast<ASTVariableExpr *>(caseStmt->getCaseExpr());
     ASTDeclNode *scrutDecl =
         scrutVar ? resolveVar(scrutVar->getName()) : nullptr;
-    if (scrutDecl && classifier->classify(scrutDecl) == OwnershipClass::Own) {
+    if (scrutDecl && ownershipOf(scrutDecl) == OwnershipClass::Own) {
       consumeVar(scrutVar, scrutDecl, state, "ownership consumed by case",
                  "case-scrutinee");
     } else {
@@ -279,14 +319,14 @@ MoveAnalysis::StateMap MoveAnalysis::analyzeStmt(ASTStmt *stmt, StateMap state) 
 // Case arms: owned binders of a by-value match are arm-scoped owners
 // ---------------------------------------------------------------------------
 
-std::vector<ASTDeclNode *>
-MoveAnalysis::ownedBinders(ASTCaseArm *arm, bool byValue) const {
+std::vector<ASTDeclNode *> MoveAnalysis::ownedBinders(ASTCaseArm *arm,
+                                                      bool byValue) const {
   std::vector<ASTDeclNode *> binders;
   if (!byValue) {
     return binders; // `case *p` binders are aliases, owned by the scrutinee
   }
   for (auto *binding : arm->getBindings()) {
-    if (classifier->classify(binding) == OwnershipClass::Own) {
+    if (ownershipOf(binding) == OwnershipClass::Own) {
       binders.push_back(binding);
     }
   }
@@ -347,7 +387,7 @@ MoveAnalysis::StateMap MoveAnalysis::analyzeArm(ASTCaseArm *arm, bool byValue,
 // ---------------------------------------------------------------------------
 
 MoveAnalysis::StateMap MoveAnalysis::analyzeAssign(ASTAssignStmt *stmt,
-                                                    StateMap state) {
+                                                   StateMap state) {
   ASTExpr *lhs = stmt->getLHS();
   ASTExpr *rhs = stmt->getRHS();
 
@@ -362,10 +402,12 @@ MoveAnalysis::StateMap MoveAnalysis::analyzeAssign(ASTAssignStmt *stmt,
 
   auto *rhsVar = dynamic_cast<ASTVariableExpr *>(rhs);
   ASTDeclNode *rhsDecl = rhsVar ? resolveVar(rhsVar->getName()) : nullptr;
-  bool rhsIsOwn =
-      rhsDecl && classifier->classify(rhsDecl) == OwnershipClass::Own;
+  bool rhsIsOwn = rhsDecl && ownershipOf(rhsDecl) == OwnershipClass::Own;
 
   if (rhsIsOwn) {
+    if (loopProtectedOwners.count(rhsDecl))
+      throw SemanticError("borrow protects owner '" + rhsVar->getName() +
+                          "' from a move during a loop");
     // A direct Own variable on the right is a move.
     auto rhsIt = state.find(rhsDecl);
     if (rhsIt != state.end() && rhsIt->second == OwnershipState::Moved) {
@@ -378,8 +420,9 @@ MoveAnalysis::StateMap MoveAnalysis::analyzeAssign(ASTAssignStmt *stmt,
     trace.push_back({"move", rhsVar->getName(), stmt->getLine(),
                      "ownership moved from RHS variable"});
     SEMANTIC_LOG(2, "move-analysis")
-      << "line=" << stmt->getLine() << " event=move variable="
-      << rhsVar->getName() << " reason=rhs-variable";
+        << "line=" << stmt->getLine()
+        << " event=move variable=" << rhsVar->getName()
+        << " reason=rhs-variable";
   } else {
     evalExpr(rhs, state);
   }
@@ -390,8 +433,7 @@ MoveAnalysis::StateMap MoveAnalysis::analyzeAssign(ASTAssignStmt *stmt,
     return state; // `*e = v`: the target was evaluated above
   }
   ASTDeclNode *lhsDecl = resolveVar(lhsVar->getName());
-  bool lhsIsOwn =
-      lhsDecl && classifier->classify(lhsDecl) == OwnershipClass::Own;
+  bool lhsIsOwn = lhsDecl && ownershipOf(lhsDecl) == OwnershipClass::Own;
 
   bool rhsIsBorrowExpr = dynamic_cast<ASTBorrowExpr *>(rhs) != nullptr;
 
@@ -418,8 +460,8 @@ MoveAnalysis::StateMap MoveAnalysis::analyzeAssign(ASTAssignStmt *stmt,
                      rhsIsOwn ? "ownership received via move"
                               : "ownership established by assignment"});
     SEMANTIC_LOG(2, "move-analysis")
-      << "line=" << stmt->getLine() << " event=own variable="
-      << lhsVar->getName();
+        << "line=" << stmt->getLine()
+        << " event=own variable=" << lhsVar->getName();
   }
 
   return state;
@@ -430,7 +472,7 @@ MoveAnalysis::StateMap MoveAnalysis::analyzeAssign(ASTAssignStmt *stmt,
 // ---------------------------------------------------------------------------
 
 void MoveAnalysis::evalExpr(ASTNode *node, StateMap &state) {
-  if (node == nullptr) {
+  if (node == nullptr || dynamic_cast<ASTLambdaExpr *>(node)) {
     return;
   }
 
@@ -445,7 +487,8 @@ void MoveAnalysis::evalExpr(ASTNode *node, StateMap &state) {
     // Which actuals this call consumes was decided once, from solved types
     // and callee summaries (FunctionEffectSummaries::callEffect).
     const FunctionEffectSummaries::CallEffect *effect =
-        functionEffects != nullptr ? functionEffects->callEffect(call) : nullptr;
+        functionEffects != nullptr ? functionEffects->callEffect(call)
+                                   : nullptr;
     auto actuals = call->getActuals();
 
     // A borrow in any actual is live until the call returns, so no actual of
@@ -459,12 +502,16 @@ void MoveAnalysis::evalExpr(ASTNode *node, StateMap &state) {
     for (std::size_t i = 0; i < actuals.size(); ++i) {
       bool consumes = effect != nullptr && i < effect->consumes.size() &&
                       effect->consumes[i];
+      if (instantiatedExpressionType)
+        consumes = OwnershipClassifier::classifyType(
+                       instantiatedExpressionType(actuals[i]).get()) ==
+                   OwnershipClass::Own;
       auto *argVar = dynamic_cast<ASTVariableExpr *>(actuals[i]);
       ASTDeclNode *decl = argVar ? resolveVar(argVar->getName()) : nullptr;
       if (consumes && decl != nullptr &&
-          classifier->classify(decl) == OwnershipClass::Own) {
-        consumeVar(argVar, decl, state,
-                   "ownership moved via function argument", "function-argument");
+          ownershipOf(decl) == OwnershipClass::Own) {
+        consumeVar(argVar, decl, state, "ownership moved via function argument",
+                   "function-argument");
       } else {
         // A temporary (the callee owns it) or a non-consuming actual.
         evalExpr(actuals[i], state);
@@ -480,6 +527,19 @@ void MoveAnalysis::evalExpr(ASTNode *node, StateMap &state) {
     return;
   }
 
+  if (auto *sequence = dynamic_cast<ASTSequenceExpr *>(node)) {
+    for (auto *element : sequence->getElements()) {
+      auto *variable = dynamic_cast<ASTVariableExpr *>(element);
+      auto *decl = variable ? resolveVar(variable->getName()) : nullptr;
+      if (decl && ownershipOf(decl) == OwnershipClass::Own)
+        consumeVar(variable, decl, state,
+                   "ownership moved into sequence element", "sequence-element");
+      else
+        evalExpr(element, state);
+    }
+    return;
+  }
+
   // A constructor payload takes ownership of an Own variable: the box owns it
   // from here on, so the variable is moved exactly as if it were passed to a
   // consuming call.
@@ -488,7 +548,7 @@ void MoveAnalysis::evalExpr(ASTNode *node, StateMap &state) {
       auto *payloadVar = dynamic_cast<ASTVariableExpr *>(payload);
       ASTDeclNode *decl =
           payloadVar ? resolveVar(payloadVar->getName()) : nullptr;
-      if (decl != nullptr && classifier->classify(decl) == OwnershipClass::Own) {
+      if (decl != nullptr && ownershipOf(decl) == OwnershipClass::Own) {
         consumeVar(payloadVar, decl, state,
                    "ownership moved into constructor payload",
                    "constructor-payload");
@@ -507,12 +567,12 @@ void MoveAnalysis::evalExpr(ASTNode *node, StateMap &state) {
 void MoveAnalysis::checkUse(ASTVariableExpr *varExpr,
                             const StateMap &state) const {
   ASTDeclNode *decl = resolveVar(varExpr->getName());
-  if (decl && classifier->classify(decl) == OwnershipClass::Own) {
+  if (decl && ownershipOf(decl) == OwnershipClass::Own) {
     auto it = state.find(decl);
     if (it != state.end() && it->second == OwnershipState::Moved) {
       std::ostringstream oss;
-      oss << "variable '" << varExpr->getName()
-          << "' used after move on line " << varExpr->getLine();
+      oss << "variable '" << varExpr->getName() << "' used after move on line "
+          << varExpr->getLine();
       RuleToggles::reject("use-after-move", oss.str());
     }
   }
@@ -521,6 +581,9 @@ void MoveAnalysis::checkUse(ASTVariableExpr *varExpr,
 void MoveAnalysis::consumeVar(ASTVariableExpr *varExpr, ASTDeclNode *decl,
                               StateMap &state, const char *reason,
                               const char *logReason) {
+  if (loopProtectedOwners.count(decl))
+    throw SemanticError("borrow protects owner '" + varExpr->getName() +
+                        "' from a move during a loop");
   auto it = state.find(decl);
   if (it != state.end() && it->second == OwnershipState::Moved) {
     std::ostringstream oss;
@@ -544,8 +607,9 @@ void MoveAnalysis::consumeVar(ASTVariableExpr *varExpr, ASTDeclNode *decl,
   movedInStmt.insert(decl);
   trace.push_back({"move", varExpr->getName(), varExpr->getLine(), reason});
   SEMANTIC_LOG(2, "move-analysis")
-      << "line=" << varExpr->getLine() << " event=move variable="
-      << varExpr->getName() << " reason=" << logReason;
+      << "line=" << varExpr->getLine()
+      << " event=move variable=" << varExpr->getName()
+      << " reason=" << logReason;
 }
 
 void MoveAnalysis::noteUnboundReference(ASTDeRefExpr *deref) {
@@ -564,12 +628,12 @@ void MoveAnalysis::noteUnboundReference(ASTDeRefExpr *deref) {
 }
 
 void MoveAnalysis::collectDiscardedPayloads(ASTPattern *pat,
-                                           ASTDeclNode *payload,
-                                           const std::string &tag,
-                                           std::size_t index, ASTCaseArm *arm) {
+                                            ASTDeclNode *payload,
+                                            const std::string &tag,
+                                            std::size_t index,
+                                            ASTCaseArm *arm) {
   if (dynamic_cast<ASTWildcardPattern *>(pat) != nullptr) {
-    if (payload != nullptr &&
-        classifier->classify(payload) == OwnershipClass::Own) {
+    if (payload != nullptr && ownershipOf(payload) == OwnershipClass::Own) {
       plan.discardedPayloads.insert(pat);
       recordSite(DestructionPlan::SiteKind::DiscardedPayload, arm->getLine(),
                  arm->getColumn(), tag + " payload " + std::to_string(index));
@@ -593,21 +657,58 @@ void MoveAnalysis::collectDiscardedPayloads(ASTPattern *pat,
   }
 }
 
-void MoveAnalysis::collectBorrowedOwners(ASTNode *node,
-                                         std::set<ASTDeclNode *> &owners) const {
-  if (node == nullptr) {
-    return;
+std::set<ASTDeclNode *> MoveAnalysis::borrowOwners(ASTExpr *expression) const {
+  if (auto *borrow = dynamic_cast<ASTBorrowExpr *>(expression))
+    return borrowOwners(borrow->getVar());
+  if (auto *index = dynamic_cast<ASTIndexExpr *>(expression))
+    return borrowOwners(index->getSequence());
+  if (auto *deref = dynamic_cast<ASTDeRefExpr *>(expression))
+    return borrowOwners(deref->getPtr());
+  if (auto *variable = dynamic_cast<ASTVariableExpr *>(expression)) {
+    auto *decl = resolveVar(variable->getName());
+    if (decl && ownershipOf(decl) == OwnershipClass::Own)
+      return {decl};
   }
-  if (auto *borrow = dynamic_cast<ASTBorrowExpr *>(node)) {
-    if (auto *var = dynamic_cast<ASTVariableExpr *>(borrow->getVar())) {
-      if (auto *decl = resolveVar(var->getName())) {
-        owners.insert(decl);
+  std::set<ASTDeclNode *> result;
+  if (auto *call = dynamic_cast<ASTFunAppExpr *>(expression)) {
+    const auto actuals = call->getActuals();
+    for (auto *target : functionEffects->targets(call)) {
+      const auto *summary = functionEffects->get(target->getDecl());
+      if (summary &&
+          summary->returnOrigin ==
+              FunctionEffectSummaries::ReturnOrigin::FromFormal &&
+          summary->returnFormalIndex >= 0 &&
+          static_cast<std::size_t>(summary->returnFormalIndex) <
+              actuals.size()) {
+        auto sources = borrowOwners(actuals[summary->returnFormalIndex]);
+        result.insert(sources.begin(), sources.end());
+      } else {
+        for (auto *actual : actuals) {
+          auto sources = borrowOwners(actual);
+          result.insert(sources.begin(), sources.end());
+        }
       }
     }
   }
-  for (auto &child : node->getChildren()) {
-    collectBorrowedOwners(child.get(), owners);
+  return result;
+}
+
+void MoveAnalysis::collectBorrowedOwners(
+    ASTNode *node, std::set<ASTDeclNode *> &owners) const {
+  if (!node || dynamic_cast<ASTLambdaExpr *>(node))
+    return;
+  if (auto *expr = dynamic_cast<ASTExpr *>(node)) {
+    auto type = instantiatedExpressionType
+                    ? instantiatedExpressionType(expr)
+                    : functionEffects->typeOf(expr, currentFuncDecl);
+    if (dynamic_cast<ASTBorrowExpr *>(node) ||
+        dynamic_cast<TopBorrowRef *>(type.get())) {
+      auto sources = borrowOwners(expr);
+      owners.insert(sources.begin(), sources.end());
+    }
   }
+  for (auto &child : node->getChildren())
+    collectBorrowedOwners(child.get(), owners);
 }
 
 // ---------------------------------------------------------------------------
@@ -687,8 +788,10 @@ void MoveAnalysis::assertLoopInvariant(const StateMap &preState,
     return it != m.end() && it->second == OwnershipState::Owned;
   };
   std::set<ASTDeclNode *> vars;
-  for (const auto &[decl, _] : preState) vars.insert(decl);
-  for (const auto &[decl, _] : bodyState) vars.insert(decl);
+  for (const auto &[decl, _] : preState)
+    vars.insert(decl);
+  for (const auto &[decl, _] : bodyState)
+    vars.insert(decl);
   for (auto *decl : vars) {
     bool before = lookup(preState, decl);
     bool after = lookup(bodyState, decl);

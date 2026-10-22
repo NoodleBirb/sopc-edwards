@@ -6,7 +6,9 @@
 #include <ostream>
 
 class SemanticAnalysis;
-namespace llvm { class Module; }
+namespace llvm {
+class Module;
+}
 
 /*! \brief Class for a program: a list of type declarations and functions.
  *
@@ -15,6 +17,7 @@ class ASTProgram : public ASTNode {
   std::string name;
   std::vector<std::shared_ptr<ASTSumTypeDecl>> TYPEDECLS;
   std::vector<std::shared_ptr<ASTFunction>> FUNCTIONS;
+  std::vector<std::shared_ptr<ASTFunction>> semanticFunctions;
 
 public:
   std::vector<std::shared_ptr<ASTNode>> getChildren() override;
@@ -32,9 +35,14 @@ public:
   void addFunction(std::shared_ptr<ASTFunction> f) {
     FUNCTIONS.push_back(std::move(f));
   }
+  // Analysis-only function views of source lambdas are not source AST children.
+  void addSemanticFunction(std::shared_ptr<ASTFunction> f) {
+    semanticFunctions.push_back(std::move(f));
+  }
   ASTFunction *findFunctionByName(std::string);
   void accept(ASTVisitor *visitor) override;
-  std::shared_ptr<llvm::Module> codegen(SemanticAnalysis *st, const std::string& name);
+  std::shared_ptr<llvm::Module> codegen(SemanticAnalysis *st,
+                                        const std::string &name);
 
 public:
   friend std::ostream &operator<<(std::ostream &os, const ASTProgram &obj) {

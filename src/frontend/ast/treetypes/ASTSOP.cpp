@@ -52,7 +52,8 @@ std::vector<std::shared_ptr<ASTNode>> ASTLengthExpr::getChildren() {
   return result;
 }
 void ASTLambdaExpr::accept(ASTVisitor *visitor) {
-  if (visitor->visit(this))
+  if (visitor->visit(this) &&
+      (!getFunction() || visitor->visitMaterializedLambdaBody()))
     for (auto &child : getChildren())
       child->accept(visitor);
   visitor->endVisit(this);

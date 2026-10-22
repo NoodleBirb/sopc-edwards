@@ -1,14 +1,20 @@
 #include "Substituter.h"
 #include "Copier.h"
+#include "ReferenceMode.h"
+#include "ReferenceType.h"
 #include "TopBorrowRef.h"
 #include "TopModeVar.h"
 #include "TopOwningRef.h"
-#include "ReferenceMode.h"
-#include "ReferenceType.h"
+#include "TopSequence.h"
 #include "TopSumType.h"
 
 #include <algorithm>
 #include <iterator>
+
+void Substituter::endVisit(TopSequence *) {
+  auto element = visitedTypes.back();
+  visitedTypes.back() = std::make_shared<TopSequence>(element);
+}
 
 std::shared_ptr<TopType> Substituter::substitute(TopType *t, TopVar *v,
                                                  std::shared_ptr<TopType> s) {
@@ -110,7 +116,7 @@ void Substituter::endVisit(TopAlpha *element) {
     auto copy = Copier::copy(substitution);
     visitedTypes.push_back(copy);
   } else {
-    visitedTypes.push_back(
-        std::make_shared<TopAlpha>(element->getNode(), element->getContext(), element->getName()));
+    visitedTypes.push_back(std::make_shared<TopAlpha>(
+        element->getNode(), element->getContext(), element->getName()));
   }
 }

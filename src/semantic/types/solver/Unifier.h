@@ -1,11 +1,14 @@
 #pragma once
 
-#include "TopTermAdapter.h"
-#include "TopTypeClosure.h"
-#include "TopType.h"
-#include "TopVar.h"
+#include "IterationConstraint.h"
 #include "TermUnifier.h"
+#include "TopTermAdapter.h"
+#include "TopType.h"
+#include "TopTypeClosure.h"
+#include "TopVar.h"
 #include "TypeConstraint.h"
+#include <map>
+class ASTDeclNode;
 #include <memory>
 #include <vector>
 
@@ -35,6 +38,12 @@ public:
 
   /*! \brief Add constraints to this bridge (mirrors Unifier::add()). */
   void add(std::vector<TypeConstraint> constraints);
+  void addIterations(const std::vector<IterationConstraint> &constraints);
+  void rememberIterations(ASTDeclNode *function,
+                          const std::vector<IterationConstraint> &constraints);
+  std::vector<IterationConstraint> iterationsFor(ASTDeclNode *function);
+  std::vector<IterationConstraint> copyIterations(ASTDeclNode *function,
+                                                  ASTNode *context);
 
   /*!
    * \brief Solve all pending constraints (batch mode).
@@ -59,4 +68,6 @@ public:
 
 private:
   TermUnifier termUnifier;
+  std::vector<IterationConstraint> iterations;
+  std::map<ASTDeclNode *, std::vector<IterationConstraint>> iterationSchemes;
 };

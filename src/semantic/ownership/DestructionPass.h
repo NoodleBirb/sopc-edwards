@@ -1,5 +1,6 @@
 #pragma once
 
+#include "DestructionPlan.h"
 #include "MoveAnalysis.h"
 
 class ASTProgram;
@@ -17,5 +18,9 @@ class ASTProgram;
 class DestructionPass {
 public:
   /*! \brief Insert the destroys \p plan calls for. */
-  static void run(ASTProgram *ast, const MoveAnalysis::DestructionPlan &plan);
+  static void run(ASTProgram *ast, const MoveAnalysis::DestructionPlan &plan,
+                  const ::DestructionPlan *detail = nullptr);
+  static std::shared_ptr<::DestructionPlan>
+  run(ASTProgram *ast, SymbolTable *symbols, OwnershipClassifier *classifier,
+      FunctionEffectSummaries *effects, const MoveAnalysis *moves = nullptr);
 };

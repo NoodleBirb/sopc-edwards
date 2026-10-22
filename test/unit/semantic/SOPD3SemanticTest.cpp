@@ -5,6 +5,7 @@
 #include "ASTForStmt.h"
 #include "ASTFunAppExpr.h"
 #include "ASTLambdaExpr.h"
+#include "ASTLengthExpr.h"
 #include "ASTReturnStmt.h"
 #include "ASTVariableExpr.h"
 #include "BorrowChecker.h"
@@ -225,7 +226,12 @@ void checkAccepted(const sopd3::Case &example,
     CHECK(OwnershipClassifier::classifyType(type.get()) ==
           OwnershipClass::Copy);
     const auto parameters = lambda->getParameters();
-    const auto parameterTypes = functionType->getParamTypes();
+    REQUIRE(lambda->getFunction() != nullptr);
+    const auto scheme =
+        types->getInferredType(lambda->getFunction()->getDecl());
+    const auto *schemeFunction = dynamic_cast<TopFunction *>(scheme.get());
+    REQUIRE(schemeFunction != nullptr);
+    const auto parameterTypes = schemeFunction->getParamTypes();
     REQUIRE(parameters.size() == parameterTypes.size());
     for (std::size_t i = 0; i < parameters.size(); ++i)
       CHECK(typeText(types->getInferredType(parameters[i])) ==
@@ -297,6 +303,86 @@ TEST_CASE("SOP D3 semantic assertions work on existing TOP",
       {{"own", "p"}, {"move", "p"}, {"own", "q"}},
       {"x"}};
   checkAccepted(example, parse(example.source));
+}
+
+TEST_CASE("SOP D3 destruction nodes share the semantic cleanup actions",
+          "[SOP][D3][cleanup-plan]") {
+  auto ast = parse(R"(
+    mk() { return [1, 2]; }
+    main() {
+      var p, s, n;
+      p = alloc 7;
+      s = [[p]];
+      n = #mk();
+      return n + #s;
+    }
+  )");
+  auto analysis = SemanticAnalysis::analyze(ast.get());
+  auto *plan = analysis->getDestructionPlan();
+  REQUIRE(plan != nullptr);
+  auto *main = ast->findFunctionByName("main");
+  auto destroys = nodes<ASTDestroyStmt>(main);
+  REQUIRE(destroys.size() == 1);
+  auto action = destroys.front()->getCleanupAction();
+  REQUIRE(action != nullptr);
+  const auto &actions = plan->getActions();
+  CHECK(std::find(actions.begin(), actions.end(), action) != actions.end());
+  CHECK(action->owner == destroys.front()->getVar());
+  CHECK(action->owner->getName() == "s");
+  CHECK(action->point == main->getStmts().back());
+  CHECK(action->cleanupPoint == CleanupAction::Point::AfterReturnValue);
+  auto outer = action->recipe;
+  REQUIRE(outer != nullptr);
+  REQUIRE(outer->kind == CleanupRecipe::Kind::Sequence);
+  REQUIRE(outer->children.size() == 1);
+  auto inner = outer->children.front();
+  REQUIRE(inner->kind == CleanupRecipe::Kind::Sequence);
+  REQUIRE(inner->children.size() == 1);
+  CHECK(inner->children.front()->kind == CleanupRecipe::Kind::Reference);
+  CHECK(typeText(inner->children.front()->type) == "own&int");
+
+  std::size_t temporaryCleanups = 0;
+  for (const auto &entry : actions) {
+    if (entry->kind != CleanupAction::Kind::Destroy || !entry->temporary)
+      continue;
+    ++temporaryCleanups;
+    auto *call = dynamic_cast<ASTFunAppExpr *>(entry->temporary);
+    REQUIRE(call != nullptr);
+    auto *length = dynamic_cast<ASTLengthExpr *>(entry->point);
+    REQUIRE(length != nullptr);
+    CHECK(length->getSequence() == call);
+    CHECK(entry->cleanupPoint == CleanupAction::Point::AfterExpression);
+    REQUIRE(entry->recipe->kind == CleanupRecipe::Kind::Sequence);
+    CHECK(entry->recipe->children.front()->kind == CleanupRecipe::Kind::Copy);
+  }
+  CHECK(temporaryCleanups == 1);
+}
+
+TEST_CASE("SOP D3 temporary element borrow ends at its receiving call",
+          "[SOP][D3][cleanup-plan]") {
+  auto ast = parse(R"(
+    mk() { return [1, 2]; }
+    read(p) { return *p; }
+    inc(x) { return x + 1; }
+    main() { return inc(read(&mk()[0])); }
+  )");
+  auto analysis = SemanticAnalysis::analyze(ast.get());
+  auto *plan = analysis->getDestructionPlan();
+  REQUIRE(plan != nullptr);
+  std::size_t cleanups = 0;
+  for (const auto &entry : plan->getActions()) {
+    if (!entry->temporary || entry->kind != CleanupAction::Kind::Destroy)
+      continue;
+    ++cleanups;
+    auto *receivingCall = dynamic_cast<ASTFunAppExpr *>(entry->point);
+    REQUIRE(receivingCall != nullptr);
+    auto *callee =
+        dynamic_cast<ASTVariableExpr *>(receivingCall->getFunction());
+    REQUIRE(callee != nullptr);
+    CHECK(callee->getName() == "read");
+    CHECK(entry->cleanupPoint == CleanupAction::Point::AfterBorrowedOperation);
+  }
+  CHECK(cleanups == 1);
 }
 
 // The group labels correspond to the worksheet in REQUIREMENTS3.md.

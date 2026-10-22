@@ -89,7 +89,7 @@ std::vector<Case> buildCases() {
   reject("G2", "borrow moved sequence", "SL11",
          mainProgram("s, t", "s = [1]; t = s;", "read(&s)",
                      "read(p) { return #*p; }"),
-         {"moved"});
+         {"used after move"});
   reject("G2", "transfer moved sequence", "SL11",
          mainProgram("s, t, u", "s = [1]; t = s; u = s;"), {"moved"});
   reject("G2", "overwrite live sequence", "SL12",
@@ -110,6 +110,11 @@ std::vector<Case> buildCases() {
                            ") { n = size(s); }",
                        "0", "size(q) { return #q; }"),
            {"move", "loop"});
+
+  reject(
+      "G2", "different sequence recipients across branches", "SL13",
+      mainProgram("s, t, u", "s = [1]; if (input) { t = s; } else { u = s; }"),
+      {"ownership state disagreement"});
 
   // G3: recursive cleanup and transferred/temporary owners.
   accept("G3", "retained recursive owners", "SL3 SL6 SL7 SL14 SL16 SL18 SL19",
@@ -209,6 +214,14 @@ std::vector<Case> buildCases() {
   reject("G5", "borrow before move in same call", "IX5",
          mainProgram("s, n", "s = [1]; n = take(&s[0], s);", "n",
                      "take(p, q) { return *p + #q; }"),
+         {"borrow", "s"});
+  reject("G5", "forwarded borrow before move", "IX5",
+         mainProgram("s, n", "s = [1]; n = take(ident(&s[0]), s);", "n",
+                     "ident(p) { return p; } take(p, q) { return *p + #q; }"),
+         {"borrow", "s"});
+  reject("G5", "move before forwarded borrow", "IX5",
+         mainProgram("s, n", "s = [1]; n = take(s, ident(&s[0]));", "n",
+                     "ident(p) { return p; } take(q, p) { return #q + *p; }"),
          {"borrow", "s"});
 
   // G6: length reads preserve ownership and do not constrain element types.
@@ -345,6 +358,12 @@ std::vector<Case> buildCases() {
                      "for (e : &s) { keep = ident(e); }",
                      "0", "ident(p) { return p; }"),
          {"borrow", "escape"});
+  reject("G10", "borrowed binder used after loop", "BI3 BI4",
+         mainProgram("s, e, n",
+                     "s = [alloc 1]; n = 0; "
+                     "for (e : &s) { n = read(e); } n = read(e);",
+                     "n", "read(p) { return **p; }"),
+         {"borrow", "escapes"});
   accept("G10", "modify Copy payload through binder", "BI3 BI4 BI6 BI9 IX6",
          mainProgram("s, e, n",
                      "s = [alloc 1]; n = 0; "
@@ -388,6 +407,33 @@ std::vector<Case> buildCases() {
          {{"main", "f", "(int)->int", false}, {"main", "n", "int", false}},
          {{"main", {}}})
       .callTargets = {{"f", 2, 0}};
+
+  accept("G10", "generic borrowed iteration with independent instantiations",
+         "BI2 BI4 BI6",
+         mainProgram("a, b", "a = [1]; b = [alloc 2];", "both(&a, &b)",
+                     "ignore(x) { return 0; } "
+                     "visit(q) { var e, n; n = 0; for (e : q) { n = ignore(e); "
+                     "} return n; } "
+                     "both(a, b) { return visit(a) + visit(b); }"),
+         {{"main", "a", "Seq(int)", true}, {"main", "b", "Seq(own&int)", true}},
+         {{"main", {"a", "b"}}, {"ignore", {}}, {"visit", {}}, {"both", {}}});
+  accept("G10", "generic borrowed nested element read", "BI2 BI4 BI6",
+         mainProgram("s", "s = [[1], [2]];", "visit(&s)",
+                     "length(p) { return #*p; } "
+                     "visit(q) { var e, n; n = 0; for (e : q) { n = n + "
+                     "length(e); } return n; }"),
+         {{"main", "s", "Seq(Seq(int))", true}},
+         {{"main", {"s"}}, {"length", {}}, {"visit", {}}});
+  reject(
+      "G10", "generic integer iteration rejects owned elements", "BI2",
+      mainProgram(
+          "s", "s = [alloc 1];", "visit(&s)",
+          "visit(q) { var e, n; n = 0; for (e : q) { n = n + e; } return n; }"),
+      {"Cannot unify"});
+  reject("G10", "generic borrowed binder returned", "BI4 BI6",
+         mainProgram("s, x", "s = [alloc 1]; x = last(&s);", "0",
+                     "last(q) { var e; for (e : q) {} return e; }"),
+         {"borrow"});
 
   // G12: ordinary and higher-order ownership effects.
   accept("G12", "generic Copy-element disposal", "SL9 LA6",
@@ -441,6 +487,22 @@ std::vector<Case> buildCases() {
                      "n = apply(g, s);",
                      "n", "apply(f, v) { return f(v); }"),
          {"element type"});
+  reject(
+      "G12", "generic sequence moved on only one branch", "SL9 SL13",
+      mainProgram("s, n", "s = [1]; n = dispose(s, input);", "n",
+                  "pass(p) { return p; } "
+                  "dispose(q, c) { var r; if (c) { r = pass(q); } return 0; }"),
+      {"ownership state disagreement"});
+  reject("G12", "generic retained sequence alias lacks cleanup shape", "SL9",
+         mainProgram("s, n", "s = [1]; n = dispose(s);", "n",
+                     "pass(p) { return p; } "
+                     "dispose(q) { var r; r = pass(q); return 0; }"),
+         {"element type"});
+  accept("G12", "generic forwarding to Copy element disposal", "SL9 LA6",
+         mainProgram("s", "s = [1];", "relay(s)",
+                     "size(q) { return #q; } relay(q) { return size(q); }"),
+         {{"main", "s", "Seq(int)", true}},
+         {{"main", {}}, {"size", {"q"}}, {"relay", {}}});
   return result;
 }
 } // namespace

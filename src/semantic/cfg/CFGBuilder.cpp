@@ -4,6 +4,7 @@
 
 #include "ASTBlockStmt.h"
 #include "ASTCaseStmt.h"
+#include "ASTForStmt.h"
 #include "ASTFunction.h"
 #include "ASTIfStmt.h"
 #include "ASTProgram.h"
@@ -93,11 +94,10 @@ public:
     std::vector<BasicBlock> blocks;
     blocks.reserve(ordered.size());
     for (auto &draft : ordered) {
-      blocks.emplace_back(draft.id, std::move(draft.name),
-                          std::move(draft.statements), draft.terminatorKind,
-                          draft.terminatorStatement, draft.condition,
-                          std::move(draft.successors),
-                          std::move(preds[draft.id]));
+      blocks.emplace_back(
+          draft.id, std::move(draft.name), std::move(draft.statements),
+          draft.terminatorKind, draft.terminatorStatement, draft.condition,
+          std::move(draft.successors), std::move(preds[draft.id]));
     }
 
     return ControlFlowGraph(function, std::move(blocks), 0, exitId);
@@ -151,21 +151,30 @@ private:
                       const ASTExpr *condition,
                       std::vector<CFGEdge> successors) {
     BlockId id = allocateId();
-    drafts.push_back({id,
-                      "b" + std::to_string(id - 1),
-                      std::move(statements),
-                      terminatorKind,
-                      terminatorStatement,
-                      condition,
+    drafts.push_back({id, "b" + std::to_string(id - 1), std::move(statements),
+                      terminatorKind, terminatorStatement, condition,
                       std::move(successors)});
     return id;
   }
 
   BlockId buildStmt(ASTStmt *stmt, BlockId continuation) {
+    if (auto *loop = dynamic_cast<ASTForStmt *>(stmt)) {
+      BlockId header = allocateId();
+      BlockId body = buildStmt(loop->getBody(), header);
+      drafts.push_back({header,
+                        "b" + std::to_string(header - 1),
+                        {},
+                        CFGTerminatorKind::For,
+                        loop,
+                        nullptr,
+                        {{body, CFGEdgeKind::TrueBranch, ""},
+                         {continuation, CFGEdgeKind::FalseBranch, ""}}});
+      return header;
+    }
     if (auto *ret = dynamic_cast<ASTReturnStmt *>(stmt)) {
-      return createBlock({}, CFGTerminatorKind::Return, ret, nullptr,
-                         {{kUnresolvedExit, CFGEdgeKind::ReturnToExit,
-                           "return"}});
+      return createBlock(
+          {}, CFGTerminatorKind::Return, ret, nullptr,
+          {{kUnresolvedExit, CFGEdgeKind::ReturnToExit, "return"}});
     }
 
     if (auto *ifStmt = dynamic_cast<ASTIfStmt *>(stmt)) {
@@ -200,7 +209,8 @@ private:
     if (auto *caseStmt = dynamic_cast<ASTCaseStmt *>(stmt)) {
       auto arms = caseStmt->getArms();
       if (arms.empty()) {
-        throw InternalError("CFGBuilder encountered case statement with no arms");
+        throw InternalError(
+            "CFGBuilder encountered case statement with no arms");
       }
 
       std::vector<CFGEdge> armEdges;
@@ -244,6 +254,7 @@ private:
       while (start > 0) {
         ASTStmt *candidate = stmts[start - 1];
         if (dynamic_cast<ASTIfStmt *>(candidate) != nullptr ||
+            dynamic_cast<ASTForStmt *>(candidate) != nullptr ||
             dynamic_cast<ASTWhileStmt *>(candidate) != nullptr ||
             dynamic_cast<ASTCaseStmt *>(candidate) != nullptr ||
             dynamic_cast<ASTBlockStmt *>(candidate) != nullptr) {
@@ -261,10 +272,9 @@ private:
             prefix.push_back(stmts[k]);
           }
 
-          current = createBlock(std::move(prefix), CFGTerminatorKind::Return,
-                                ret, nullptr,
-                                {{kUnresolvedExit, CFGEdgeKind::ReturnToExit,
-                                  "return"}});
+          current = createBlock(
+              std::move(prefix), CFGTerminatorKind::Return, ret, nullptr,
+              {{kUnresolvedExit, CFGEdgeKind::ReturnToExit, "return"}});
         } else {
           std::vector<const ASTStmt *> run;
           run.reserve(i - start);

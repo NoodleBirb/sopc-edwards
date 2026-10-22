@@ -26,6 +26,10 @@ public:
   bool visit(ASTFunction *element) override;
   bool visit(ASTFunAppExpr *element) override;
   bool visit(ASTAssignStmt *element) override;
+  bool visit(ASTLambdaExpr *element) override;
+  bool visit(ASTSequenceExpr *element) override;
+  bool visit(ASTIndexExpr *element) override;
+  bool visit(ASTSliceExpr *element) override;
   void endVisit(ASTFunction *element) override;
   std::vector<ASTFunction *> getPossibleFunctionsForExpr(ASTNode *n,
                                                          ASTFunction *f);

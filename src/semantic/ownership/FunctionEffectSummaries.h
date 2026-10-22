@@ -14,6 +14,8 @@ class CallGraph;
 class OwnershipClassifier;
 class SymbolTable;
 class TypeInference;
+class TopType;
+class ASTExpr;
 
 class FunctionEffectSummaries {
 public:
@@ -39,12 +41,14 @@ public:
   /*! \brief Why a requirement was recorded; selects the diagnostic. A
    *  bitmask, since one formal can need Copy for several reasons. */
   enum RequirementReason : unsigned {
-    MovesOutOfBorrow = 1u << 0,  ///< `*p` taken where p is a borrowed formal
+    MovesOutOfBorrow = 1u << 0, ///< `*p` taken where p is a borrowed formal
     OverwritesThroughBorrow = 1u << 1, ///< `*p = v` replaces the referent
     LendsToMoveOut = 1u << 2,    ///< `&x` handed to a callee that takes `*p`
     UsedAfterPassedOn = 1u << 3, ///< formal used again after passing it on
-    NotDisposed = 1u << 4,       ///< formal neither returned nor passed on on every path
-    Compared = 1u << 5,          ///< formal is an operand of == or != (address equality at an owned instance)
+    NotDisposed =
+        1u << 4,        ///< formal neither returned nor passed on on every path
+    Compared = 1u << 5, ///< formal is an operand of == or != (address equality
+                        ///< at an owned instance)
   };
 
   /*! \brief A requirement together with the reasons it was recorded. */
@@ -67,6 +71,22 @@ public:
     std::vector<unsigned> formalRequirementReasons;
     ReturnOrigin returnOrigin = ReturnOrigin::Unknown;
     int returnFormalIndex = -1;
+    struct Requirement {
+      enum class Kind {
+        CopyIndex,
+        CopySlice,
+        BorrowTake,
+        Overwrite,
+        NoBorrowStorage,
+        LoopPosition,
+        LoopEscape,
+        Cleanup
+      };
+      Kind kind;
+      std::shared_ptr<TopType> type;
+      int line;
+    };
+    std::vector<Requirement> requirements;
   };
 
   /*! \brief What one call site does to each of its actuals.
@@ -97,11 +117,24 @@ public:
           *requirements);
 
   const Summary *get(ASTDeclNode *functionDecl) const;
+  std::vector<ASTFunction *> targets(ASTFunAppExpr *call) const;
+  std::shared_ptr<TopType> typeOf(ASTExpr *expression,
+                                  ASTDeclNode *scope) const;
+  TypeInference *getTypes() const { return types; }
+  void addCleanupRequirement(ASTDeclNode *function,
+                             std::shared_ptr<TopType> type, int line);
+  void validateRequirements();
 
   /*! \brief Effect of a call site, or nullptr if the call was not analyzed. */
   const CallEffect *callEffect(const ASTFunAppExpr *call) const;
 
 private:
+  void collectTypedRequirements();
+  ASTProgram *program = nullptr;
+  SymbolTable *symbols = nullptr;
+  TypeInference *types = nullptr;
+  OwnershipClassifier *ownership = nullptr;
+  CallGraph *calls = nullptr;
   struct BuildState;
   std::shared_ptr<BuildState> buildState;
   std::vector<Summary *> targetsOf(ASTFunAppExpr *call);

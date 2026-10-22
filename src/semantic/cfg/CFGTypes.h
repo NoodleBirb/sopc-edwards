@@ -23,6 +23,7 @@ enum class CFGTerminatorKind {
   Fallthrough,
   If,
   While,
+  For,
   Case,
   Return,
 };

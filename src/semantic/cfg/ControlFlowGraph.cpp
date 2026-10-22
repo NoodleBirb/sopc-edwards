@@ -11,7 +11,7 @@
 
 namespace {
 [[noreturn]] void fail(const std::string &msg) { throw InternalError(msg); }
-}
+} // namespace
 
 ControlFlowGraph::ControlFlowGraph(const ASTFunction *function,
                                    std::vector<BasicBlock> blocks,
@@ -134,6 +134,7 @@ void ControlFlowGraph::validate() const {
 
     switch (block.getTerminatorKind()) {
     case CFGTerminatorKind::If:
+    case CFGTerminatorKind::For:
     case CFGTerminatorKind::While: {
       int trueCount = 0;
       int falseCount = 0;
@@ -146,7 +147,8 @@ void ControlFlowGraph::validate() const {
         }
       }
       if (trueCount != 1 || falseCount != 1) {
-        fail("CFG conditional block must have exactly one true and one false successor");
+        fail("CFG conditional block must have exactly one true and one false "
+             "successor");
       }
       break;
     }
@@ -154,7 +156,8 @@ void ControlFlowGraph::validate() const {
       if (block.getSuccessors().size() != 1 ||
           block.getSuccessors()[0].kind != CFGEdgeKind::ReturnToExit ||
           block.getSuccessors()[0].target != exitId) {
-        fail("CFG return block must have exactly one ReturnToExit edge to exit");
+        fail(
+            "CFG return block must have exactly one ReturnToExit edge to exit");
       }
       break;
     case CFGTerminatorKind::Case:

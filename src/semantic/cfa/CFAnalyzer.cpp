@@ -1,6 +1,29 @@
 #include "CFAnalyzer.h"
+#include "ASTIndexExpr.h"
+#include "ASTLambdaExpr.h"
+#include "ASTSequenceExpr.h"
+#include "ASTSliceExpr.h"
 #include "loguru.hpp"
 #include <cassert>
+
+bool CFAnalyzer::visit(ASTLambdaExpr *lambda) {
+  if (lambda->getFunction())
+    s.addElementofConstraint(lambda->getFunction(), lambda);
+  return false;
+}
+bool CFAnalyzer::visit(ASTSequenceExpr *sequence) {
+  for (auto *element : sequence->getElements())
+    s.addSubseteqConstraint(getCanonical(element), sequence);
+  return true;
+}
+bool CFAnalyzer::visit(ASTIndexExpr *index) {
+  s.addSubseteqConstraint(getCanonical(index->getSequence()), index);
+  return true;
+}
+bool CFAnalyzer::visit(ASTSliceExpr *slice) {
+  s.addSubseteqConstraint(getCanonical(slice->getSequence()), slice);
+  return true;
+}
 
 CFAnalyzer CFAnalyzer::analyze(ASTProgram *p, SymbolTable *st) {
   CFAnalyzer cfa(p, st);
@@ -55,9 +78,9 @@ bool CFAnalyzer::visit(ASTFunAppExpr *element) {
             getCanonical(element->getActuals()[i]),
             getCanonicalForFunction(fun->getFormals()[i], fun));
       }
-      // Return-value flow is arity-independent; keep it outside the formals loop
-      // so zero-parameter callees also propagate their returned value to the
-      // call site (else `f = getf(); f(..)` leaves `f(..)` unresolved).
+      // Return-value flow is arity-independent; keep it outside the formals
+      // loop so zero-parameter callees also propagate their returned value to
+      // the call site (else `f = getf(); f(..)` leaves `f(..)` unresolved).
       auto stmts = fun->getStmts();
       ASTReturnStmt *ret;
       if (!(ret = dynamic_cast<ASTReturnStmt *>(stmts[stmts.size() - 1]))) {

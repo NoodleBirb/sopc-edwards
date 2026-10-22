@@ -1,7 +1,6 @@
 #include "SemanticAnalysis.h"
 #include "ASTSOP.h"
 #include "BorrowChecker.h"
-#include "OwnershipTypeRules.h"
 #include "CheckAssignable.h"
 #include "CheckCaseCompleteness.h"
 #include "CheckPatternTypes.h"
@@ -9,12 +8,13 @@
 #include "DestructionPass.h"
 #include "MoveAnalysis.h"
 #include "OwnershipClassifier.h"
+#include "OwnershipTypeRules.h"
+#include "PrepareLambdas.h"
 #include "SemanticError.h"
 #include "SemanticLogging.h"
 
 std::shared_ptr<SemanticAnalysis> SemanticAnalysis::analyze(ASTProgram *ast) {
-  if (containsSOP(ast))
-    throw SemanticError("SOP later-phase analysis is not implemented");
+  prepareLambdas(ast);
   SEMANTIC_LOG(1, "pipeline") << "start";
   auto symTable = SymbolTable::build(ast);
   CheckAssignable::check(ast);
@@ -30,27 +30,29 @@ std::shared_ptr<SemanticAnalysis> SemanticAnalysis::analyze(ASTProgram *ast) {
   auto typeResults = TypeInference::run(ast, callGraph.get(), symTable.get());
   OwnershipTypeRules::checkAllocPayloads(ast, typeResults.get());
   OwnershipTypeRules::checkComparisons(ast, symTable.get(), typeResults.get());
-  auto ownershipClassifier = std::make_shared<OwnershipClassifier>(
-      symTable.get(), typeResults.get());
+  auto ownershipClassifier =
+      std::make_shared<OwnershipClassifier>(symTable.get(), typeResults.get());
   auto functionEffectSummaries = FunctionEffectSummaries::build(
       ast, symTable.get(), typeResults.get(), ownershipClassifier.get(),
       callGraph.get());
   auto positionRequirements = BorrowChecker::checkPositions(
       ast, symTable.get(), typeResults.get(), ownershipClassifier.get(),
       functionEffectSummaries.get());
+  if (containsSOP(ast))
+    functionEffectSummaries->validateRequirements();
   functionEffectSummaries->resolveRequirements(&positionRequirements);
-  OwnershipTypeRules::checkBorrowComponents(ast, symTable.get(), typeResults.get());
+  functionEffectSummaries->validateRequirements();
+  OwnershipTypeRules::checkBorrowComponents(ast, symTable.get(),
+                                            typeResults.get());
   MoveAnalysis moves(ast, symTable.get(), ownershipClassifier.get(),
-               functionEffectSummaries.get());
-  DestructionPass::run(ast, moves.destructionPlan());
+                     functionEffectSummaries.get());
   auto destructionPlan =
-      std::make_shared<MoveAnalysis::DestructionPlan>(moves.destructionPlan());
+      DestructionPass::run(ast, symTable.get(), ownershipClassifier.get(),
+                           functionEffectSummaries.get(), &moves);
   SEMANTIC_LOG(1, "pipeline") << "complete";
-  return std::make_shared<SemanticAnalysis>(symTable, intraproceduralCFGs,
-                                            typeResults, callGraph,
-                                            ownershipClassifier,
-                                            functionEffectSummaries,
-                                            destructionPlan);
+  return std::make_shared<SemanticAnalysis>(
+      symTable, intraproceduralCFGs, typeResults, callGraph,
+      ownershipClassifier, functionEffectSummaries, destructionPlan);
 }
 
 SymbolTable *SemanticAnalysis::getSymbolTable() { return symTable.get(); };

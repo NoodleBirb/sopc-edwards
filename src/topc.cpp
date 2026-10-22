@@ -4,20 +4,9 @@
 #include "InternalError.h"
 #include "Optimizer.h"
 #include "ParseError.h"
+#include "PrepareLambdas.h"
 #include "RuleToggles.h"
 
-#include <cstdlib>
-#include "SemanticAnalysis.h"
-#include "ConstraintRenderer.h"
-#include "SemanticError.h"
-#include "TypeConstraintCollectVisitor.h"
-#include "SyntaxTree.h"
-#include "OwnershipTypeRules.h"
-#include "CheckAssignable.h"
-#include "CheckCaseCompleteness.h"
-#include "CheckPatternTypes.h"
-#include "CheckSumTypeNames.h"
-#include "iterators/Iterator.h"
 #include "ASTBorrowExpr.h"
 #include "ASTDestroyStmt.h"
 #include "ASTFunAppExpr.h"
@@ -25,16 +14,28 @@
 #include "ASTProgram.h"
 #include "ASTVariableExpr.h"
 #include "BorrowChecker.h"
+#include "CheckAssignable.h"
+#include "CheckCaseCompleteness.h"
+#include "CheckPatternTypes.h"
+#include "CheckSumTypeNames.h"
+#include "ConstraintRenderer.h"
+#include "DestructionPass.h"
 #include "MoveAnalysis.h"
+#include "OwnershipClassifier.h"
+#include "OwnershipTypeRules.h"
+#include "SemanticAnalysis.h"
+#include "SemanticError.h"
+#include "SyntaxTree.h"
+#include "TypeConstraintCollectVisitor.h"
+#include "cfa/CallGraph.h"
 #include "cfg/CFGRenderer.h"
 #include "cfg/IntraproceduralCFGs.h"
+#include "iterators/Iterator.h"
+#include "loguru.hpp"
 #include "symboltable/SymbolTable.h"
 #include "types/TypeInference.h"
-#include "cfa/CallGraph.h"
-#include "OwnershipClassifier.h"
-#include "DestructionPass.h"
-#include "loguru.hpp"
 #include "llvm/Support/CommandLine.h"
+#include <cstdlib>
 
 #include <algorithm>
 #include <filesystem>
@@ -51,39 +52,40 @@ static cl::OptionCategory
     TOPcat("topc Options",
            "Options for controlling the TOP compilation process.");
 static cl::opt<bool> psource("psource", cl::desc("print normalized source"),
-               cl::cat(TOPcat));
-static cl::opt<bool> parseOnly(
-    "parse-only", cl::desc("validate syntax and print ANTLR parse tree; skip AST and later phases"),
-    cl::cat(TOPcat));
+                             cl::cat(TOPcat));
+static cl::opt<bool> parseOnly("parse-only",
+                               cl::desc("validate syntax and print ANTLR parse "
+                                        "tree; skip AST and later phases"),
+                               cl::cat(TOPcat));
 static cl::opt<std::string>
-  past("past", cl::value_desc("dot|ascii"), cl::ValueOptional,
-     cl::desc("print source AST (default format: dot)"),
-     cl::init("dot"), cl::cat(TOPcat));
+    past("past", cl::value_desc("dot|ascii"), cl::ValueOptional,
+         cl::desc("print source AST (default format: dot)"), cl::init("dot"),
+         cl::cat(TOPcat));
 static cl::opt<bool> psym("psym", cl::desc("print symbols and scopes"),
-              cl::cat(TOPcat));
+                          cl::cat(TOPcat));
 static cl::opt<bool> ptype("ptype", cl::desc("print inferred types"),
-               cl::cat(TOPcat));
+                           cl::cat(TOPcat));
 static cl::opt<std::string>
-  pcallgraph("pcallgraph", cl::value_desc("dot|ascii"), cl::ValueOptional,
-         cl::desc("print call graph result (default format: dot)"),
+    pcallgraph("pcallgraph", cl::value_desc("dot|ascii"), cl::ValueOptional,
+               cl::desc("print call graph result (default format: dot)"),
+               cl::init("dot"), cl::cat(TOPcat));
+static cl::opt<std::string>
+    pcfg("pcfg", cl::value_desc("dot|ascii"), cl::ValueOptional,
+         cl::desc("print source CFG result (default format: dot)"),
          cl::init("dot"), cl::cat(TOPcat));
-static cl::opt<std::string>
-  pcfg("pcfg", cl::value_desc("dot|ascii"), cl::ValueOptional,
-     cl::desc("print source CFG result (default format: dot)"),
-     cl::init("dot"), cl::cat(TOPcat));
 static cl::opt<bool> pownership("pownership",
-                cl::desc("print ownership analysis result"),
-                cl::cat(TOPcat));
+                                cl::desc("print ownership analysis result"),
+                                cl::cat(TOPcat));
 static cl::opt<bool> pborrow("pborrow",
-               cl::desc("print borrow validity result"),
-               cl::cat(TOPcat));
+                             cl::desc("print borrow validity result"),
+                             cl::cat(TOPcat));
 static cl::opt<bool> constraint("constraint",
-                cl::desc("include constraint/trace details"),
-                cl::cat(TOPcat));
+                                cl::desc("include constraint/trace details"),
+                                cl::cat(TOPcat));
 static cl::opt<std::string>
-  outputDir("output-dir", cl::value_desc("directory"),
-        cl::desc("output directory for graph artifacts"),
-        cl::init(""), cl::cat(TOPcat));
+    outputDir("output-dir", cl::value_desc("directory"),
+              cl::desc("output directory for graph artifacts"), cl::init(""),
+              cl::cat(TOPcat));
 static cl::opt<bool> disopt("do", cl::desc("disable bitcode optimization"),
                             cl::cat(TOPcat));
 // Developer-only: disable ownership checks or safety mechanisms to measure
@@ -92,20 +94,22 @@ static cl::opt<std::string> unsafeDisable(
     "unsafe-disable",
     cl::desc("disable ownership rules by id (testing only; unsound)"),
     cl::value_desc("id,..."), cl::ReallyHidden, cl::cat(TOPcat));
-static cl::opt<bool> unsafeListRules(
-    "unsafe-list-rules", cl::desc("list rule ids for --unsafe-disable"),
-    cl::ReallyHidden, cl::cat(TOPcat));
-static cl::opt<bool> emitSan("san",
-                             cl::desc("instrument generated IR with Address/LeakSanitizer"),
-                             cl::cat(TOPcat));
+static cl::opt<bool>
+    unsafeListRules("unsafe-list-rules",
+                    cl::desc("list rule ids for --unsafe-disable"),
+                    cl::ReallyHidden, cl::cat(TOPcat));
+static cl::opt<bool>
+    emitSan("san",
+            cl::desc("instrument generated IR with Address/LeakSanitizer"),
+            cl::cat(TOPcat));
 static cl::alias emitSanAlias("asan", cl::desc("deprecated alias for --san"),
                               cl::aliasopt(emitSan));
 static cl::opt<int> debug(
     "verbose",
-  cl::desc("enable log messages (levels 1-3)\n Level 1 - semantic phase "
-       "lifecycle and summaries.\n Level 2 - Level 1 and per-declaration "
-       "semantic decisions.\n Level 3 - Level 2 and constraints, solver, "
-       "and dataflow mechanics."),
+    cl::desc("enable log messages (levels 1-3)\n Level 1 - semantic phase "
+             "lifecycle and summaries.\n Level 2 - Level 1 and per-declaration "
+             "semantic decisions.\n Level 3 - Level 2 and constraints, solver, "
+             "and dataflow mechanics."),
     cl::cat(TOPcat));
 static cl::opt<bool>
     emitHrAsm("asm", cl::desc("emit human-readable LLVM assembly language"),
@@ -181,8 +185,7 @@ void printOwnershipResult(ASTProgram *ast, SymbolTable *symbols,
     for (auto *local : symbols->getLocals(function)) {
       const auto localCls = classifier->classify(local);
       os << "  local " << function->getName() << "." << local->getName()
-         << " : " << (localCls == OwnershipClass::Own ? "Own" : "Copy")
-         << "\n";
+         << " : " << (localCls == OwnershipClass::Own ? "Own" : "Copy") << "\n";
     }
   }
 
@@ -213,11 +216,10 @@ void printOwnershipResult(ASTProgram *ast, SymbolTable *symbols,
         sites.push_back(&site);
       }
     }
-    std::stable_sort(sites.begin(), sites.end(),
-                     [](const auto *a, const auto *b) {
-                       return std::tie(a->line, a->column) <
-                              std::tie(b->line, b->column);
-                     });
+    std::stable_sort(
+        sites.begin(), sites.end(), [](const auto *a, const auto *b) {
+          return std::tie(a->line, a->column) < std::tie(b->line, b->column);
+        });
     for (const auto *site : sites) {
       os << "    line " << std::left << std::setw(4) << site->line << " "
          << std::setw(18) << MoveAnalysis::siteKindName(site->kind)
@@ -265,49 +267,48 @@ collectTypeSchemeRecords(SymbolTable *symbols, TypeInference *typeResults) {
   return records;
 }
 
-std::vector<ConstraintRecord> collectTypeInstantiationRecords(ASTProgram *ast,
-                                                              SymbolTable *symbols,
-                                                              CallGraph *cg,
-                                                              TypeInference *typeResults) {
+std::vector<ConstraintRecord>
+collectTypeInstantiationRecords(ASTProgram *ast, SymbolTable *symbols,
+                                CallGraph *cg, TypeInference *typeResults) {
   std::vector<ConstraintRecord> records;
   for (auto *function : ast->getFunctions()) {
-  SyntaxTree tree(std::shared_ptr<ASTNode>(function, [](ASTNode *) {}));
-  for (auto it = tree.begin(""); it != tree.end(""); ++it) {
-    auto node = it->getRoot().get();
-    auto *call = dynamic_cast<ASTFunAppExpr *>(node);
-    if (!call) {
-      continue;
-    }
+    SyntaxTree tree(std::shared_ptr<ASTNode>(function, [](ASTNode *) {}));
+    for (auto it = tree.begin(""); it != tree.end(""); ++it) {
+      auto node = it->getRoot().get();
+      auto *call = dynamic_cast<ASTFunAppExpr *>(node);
+      if (!call) {
+        continue;
+      }
 
-    auto *calleeExpr = dynamic_cast<ASTVariableExpr *>(call->getFunction());
-    const bool isDirectNamedCall =
-        calleeExpr != nullptr &&
-        symbols->getFunction(calleeExpr->getName()) != nullptr;
-    if (!isDirectNamedCall) {
-      continue;
-    }
+      auto *calleeExpr = dynamic_cast<ASTVariableExpr *>(call->getFunction());
+      const bool isDirectNamedCall =
+          calleeExpr != nullptr &&
+          symbols->getFunction(calleeExpr->getName()) != nullptr;
+      if (!isDirectNamedCall) {
+        continue;
+      }
 
-    std::set<std::string> polyTargets;
-    for (auto *called : cg->getCalledFuns(call)) {
-      if (symbols->getPoly(called->getName())) {
-        polyTargets.insert(called->getName());
+      std::set<std::string> polyTargets;
+      for (auto *called : cg->getCalledFuns(call)) {
+        if (symbols->getPoly(called->getName())) {
+          polyTargets.insert(called->getName());
+        }
+      }
+
+      for (const auto &target : polyTargets) {
+        std::ostringstream text;
+        text << "call " << *call << " instantiates " << target << " at (";
+        const char *sep = "";
+        for (auto *actual : call->getActuals()) {
+          text << sep
+               << *typeResults->getInferredType(actual, function->getDecl());
+          sep = ",";
+        }
+        text << ") -> " << *typeResults->getInferredType(call);
+        records.push_back(
+            {"instantiation", call->getLine(), call->getColumn(), text.str()});
       }
     }
-
-    for (const auto &target : polyTargets) {
-      std::ostringstream text;
-      text << "call " << *call << " instantiates " << target << " at (";
-      const char *sep = "";
-      for (auto *actual : call->getActuals()) {
-        text << sep
-             << *typeResults->getInferredType(actual, function->getDecl());
-        sep = ",";
-      }
-      text << ") -> " << *typeResults->getInferredType(call);
-      records.push_back({"instantiation", call->getLine(), call->getColumn(),
-                         text.str()});
-    }
-  }
   }
   return records;
 }
@@ -335,8 +336,8 @@ collectInferredTypeRecords(SymbolTable *symbols, TypeInference *typeResults) {
       std::ostringstream text;
       text << "local " << function->getName() << "." << local->getName()
            << " : " << *typeResults->getInferredType(local);
-      records.push_back({"inferred", local->getLine(), local->getColumn(),
-                         text.str()});
+      records.push_back(
+          {"inferred", local->getLine(), local->getColumn(), text.str()});
     }
   }
   return records;
@@ -356,7 +357,8 @@ void printTypeConstraints(ASTProgram *ast, SymbolTable *symbols,
       "type-inferred", collectInferredTypeRecords(symbols, typeResults), os);
 }
 
-void printCallGraphConstraints(ASTProgram *ast, CallGraph *cg, std::ostream &os) {
+void printCallGraphConstraints(ASTProgram *ast, CallGraph *cg,
+                               std::ostream &os) {
   (void)ast;
   std::vector<ConstraintRecord> records;
   for (const auto &record : cg->getConstraintRecords()) {
@@ -378,9 +380,8 @@ void printCallGraphConstraints(ASTProgram *ast, CallGraph *cg, std::ostream &os)
       first = false;
     }
     text << "}";
-    records.push_back(
-        {"call-target", record.call->getLine(), record.call->getColumn(),
-         text.str()});
+    records.push_back({"call-target", record.call->getLine(),
+                       record.call->getColumn(), text.str()});
   }
   ConstraintRenderer::renderSection("cg-constraints", records, os);
 }
@@ -400,15 +401,14 @@ void printOwnershipConstraints(SymbolTable *symbols, OwnershipClassifier *oc,
       std::ostringstream localText;
       localText << "local " << f->getName() << "." << l->getName() << " : "
                 << (lc == OwnershipClass::Own ? "Own" : "Copy");
-      records.push_back({"ownership", l->getLine(), l->getColumn(),
-                         localText.str()});
+      records.push_back(
+          {"ownership", l->getLine(), l->getColumn(), localText.str()});
     }
   }
 
   for (const auto &event : MoveAnalysis::getLastTrace()) {
     std::ostringstream text;
-    text << event.kind << " " << event.variable << " (" << event.detail
-         << ")";
+    text << event.kind << " " << event.variable << " (" << event.detail << ")";
     records.push_back({event.label, event.line, event.column, text.str()});
   }
 
@@ -425,11 +425,14 @@ void printBorrowConstraints(ASTProgram *ast, std::ostream &os) {
       label = "borrow";
       text << event.originExpr << " -> approved; direct argument "
            << event.argumentIndex << " of " << event.callee;
+    } else if (event.kind == BorrowChecker::BorrowProvenanceEvent::Kind::Loop) {
+      label = "loop-borrow";
+      text << event.originExpr << " -> approved; for iterable at "
+           << ConstraintRenderer::formatSpan(event.useLine, event.useColumn);
     } else {
       label = "borrow-flow";
-      text << "hop " << event.hop << " " << event.expression
-           << " -> argument " << event.argumentIndex << " of " << event.callee
-           << " at "
+      text << "hop " << event.hop << " " << event.expression << " -> argument "
+           << event.argumentIndex << " of " << event.callee << " at "
            << ConstraintRenderer::formatSpan(event.useLine, event.useColumn);
     }
     records.push_back(
@@ -490,8 +493,8 @@ int main(int argc, char *argv[]) {
     std::exit(EXIT_FAILURE);
   }
   if (!callGraphFormat.empty() && !isValidGraphFormat(callGraphFormat)) {
-    std::cerr << "topc: error: invalid --pcallgraph format '"
-              << callGraphFormat << "' (expected: dot|ascii)\n";
+    std::cerr << "topc: error: invalid --pcallgraph format '" << callGraphFormat
+              << "' (expected: dot|ascii)\n";
     std::exit(EXIT_FAILURE);
   }
   if (!cfgFormat.empty() && !isValidGraphFormat(cfgFormat)) {
@@ -500,13 +503,14 @@ int main(int argc, char *argv[]) {
     std::exit(EXIT_FAILURE);
   }
 
-  const bool hasInspectionRequest =
-      wantsSource || wantsAst || wantsSymbols || wantsTypes || wantsCallGraph ||
-      wantsCFG || wantsOwnership || wantsBorrow;
+  const bool hasInspectionRequest = wantsSource || wantsAst || wantsSymbols ||
+                                    wantsTypes || wantsCallGraph || wantsCFG ||
+                                    wantsOwnership || wantsBorrow;
 
   if (wantsConstraint && !hasInspectionRequest) {
-    std::cerr << "topc: error: --constraint requires one of --ptype, --pcallgraph, "
-                 "--pownership, or --pborrow\n";
+    std::cerr
+        << "topc: error: --constraint requires one of --ptype, --pcallgraph, "
+           "--pownership, or --pborrow\n";
     std::exit(EXIT_FAILURE);
   }
 
@@ -548,9 +552,11 @@ int main(int argc, char *argv[]) {
       disopt.getNumOccurrences() > 0 || emitSan.getNumOccurrences() > 0;
   const bool compileRequested = !hasInspectionRequest || compileFlagsRequested;
 
-  if (parseOnly && (hasInspectionRequest || compileFlagsRequested || wantsConstraint)) {
-    std::cerr << "topc: error: --parse-only cannot be combined with AST, analysis, "
-                 "or compilation options\n";
+  if (parseOnly &&
+      (hasInspectionRequest || compileFlagsRequested || wantsConstraint)) {
+    std::cerr
+        << "topc: error: --parse-only cannot be combined with AST, analysis, "
+           "or compilation options\n";
     return EXIT_FAILURE;
   }
 
@@ -590,10 +596,12 @@ int main(int argc, char *argv[]) {
     }
     std::shared_ptr<ASTProgram> ast = FrontEnd::parse(stream);
     const bool sop = containsSOP(ast.get());
-    if (sop && (compileRequested || wantsTypes || wantsCallGraph || wantsCFG ||
-                wantsOwnership || wantsBorrow || wantsConstraint))
-      throw SemanticError("SOP later-phase analysis and code generation are not "
-                          "implemented; use --psource, --past, or --psym");
+    if (sop && compileRequested)
+      throw SemanticError("SOP code generation belongs to Deliverable 4; "
+                          "select an analysis view");
+    if (sop && (wantsTypes || wantsCallGraph || wantsCFG || wantsOwnership ||
+                wantsBorrow))
+      prepareLambdas(ast.get());
 
     try {
       std::shared_ptr<SymbolTable> symTable;
@@ -602,7 +610,7 @@ int main(int argc, char *argv[]) {
       std::shared_ptr<TypeInference> typeResults;
       std::shared_ptr<OwnershipClassifier> ownershipClassifier;
       std::shared_ptr<FunctionEffectSummaries> functionEffectSummaries;
-      std::shared_ptr<MoveAnalysis::DestructionPlan> destructionPlan;
+      std::shared_ptr<::DestructionPlan> destructionPlan;
 
       bool structuralChecked = false;
       bool borrowChecked = false;
@@ -633,6 +641,8 @@ int main(int argc, char *argv[]) {
           return;
         }
         ensureStructuralChecks();
+        if (sop)
+          BorrowChecker::check(ast.get());
         borrowChecked = true;
       };
 
@@ -659,8 +669,8 @@ int main(int argc, char *argv[]) {
           return;
         }
         ensureCallGraphResult();
-        typeResults = TypeInference::run(ast.get(), callGraph.get(),
-                                         symTable.get());
+        typeResults =
+            TypeInference::run(ast.get(), callGraph.get(), symTable.get());
         OwnershipTypeRules::checkAllocPayloads(ast.get(), typeResults.get());
         OwnershipTypeRules::checkComparisons(ast.get(), symTable.get(),
                                              typeResults.get());
@@ -679,7 +689,10 @@ int main(int argc, char *argv[]) {
         auto positionRequirements = BorrowChecker::checkPositions(
             ast.get(), symTable.get(), typeResults.get(),
             ownershipClassifier.get(), functionEffectSummaries.get());
+        if (sop)
+          functionEffectSummaries->validateRequirements();
         functionEffectSummaries->resolveRequirements(&positionRequirements);
+        functionEffectSummaries->validateRequirements();
       };
 
       auto ensureInterproceduralBorrowChecker = [&]() {
@@ -688,7 +701,7 @@ int main(int argc, char *argv[]) {
         }
         ensureFunctionEffects();
         OwnershipTypeRules::checkBorrowComponents(ast.get(), symTable.get(),
-                                     typeResults.get());
+                                                  typeResults.get());
         borrowChecked = true;
         interproceduralBorrowChecked = true;
       };
@@ -699,10 +712,10 @@ int main(int argc, char *argv[]) {
         }
         ensureInterproceduralBorrowChecker();
         MoveAnalysis moves(ast.get(), symTable.get(), ownershipClassifier.get(),
-                     functionEffectSummaries.get());
-        DestructionPass::run(ast.get(), moves.destructionPlan());
-        destructionPlan =
-            std::make_shared<MoveAnalysis::DestructionPlan>(moves.destructionPlan());
+                           functionEffectSummaries.get());
+        destructionPlan = DestructionPass::run(
+            ast.get(), symTable.get(), ownershipClassifier.get(),
+            functionEffectSummaries.get(), &moves);
         ownershipChecked = true;
       };
 
@@ -716,7 +729,8 @@ int main(int argc, char *argv[]) {
       }
 
       if (wantsAst) {
-        const std::string suffix = astFormat == "ascii" ? ".ast.txt" : ".ast.dot";
+        const std::string suffix =
+            astFormat == "ascii" ? ".ast.txt" : ".ast.dot";
         const auto path = resolveGraphPath(sourceFile, suffix, outputDir);
         std::ofstream astStream(path);
         if (!astStream.good()) {
@@ -791,11 +805,14 @@ int main(int argc, char *argv[]) {
 
       if (wantsOwnership) {
         ensureOwnershipResult();
-        printOwnershipResult(ast.get(), symTable.get(), ownershipClassifier.get(),
-                             destructionPlan.get(), std::cout);
+        printOwnershipResult(ast.get(), symTable.get(),
+                             ownershipClassifier.get(), destructionPlan.get(),
+                             std::cout);
         if (wantsConstraint) {
           printOwnershipConstraints(symTable.get(), ownershipClassifier.get(),
                                     std::cout);
+          if (sop)
+            destructionPlan->print(std::cout);
         }
       }
 
@@ -810,11 +827,11 @@ int main(int argc, char *argv[]) {
       if (compileRequested) {
         ensureOwnershipResult();
         auto analysisResults = std::make_shared<SemanticAnalysis>(
-          symTable, cfgs, typeResults, callGraph, ownershipClassifier,
-          functionEffectSummaries, destructionPlan);
+            symTable, cfgs, typeResults, callGraph, ownershipClassifier,
+            functionEffectSummaries, destructionPlan);
 
-        auto llvmModule = CodeGenerator::generate(ast.get(), analysisResults.get(),
-                                                  sourceFile);
+        auto llvmModule = CodeGenerator::generate(
+            ast.get(), analysisResults.get(), sourceFile);
 
         if (!disopt) {
           Optimizer::optimize(llvmModule.get(), emitSan);
@@ -823,7 +840,8 @@ int main(int argc, char *argv[]) {
         }
 
         if (emitHrAsm) {
-          CodeGenerator::emitHumanReadableAssembly(llvmModule.get(), outputfile);
+          CodeGenerator::emitHumanReadableAssembly(llvmModule.get(),
+                                                   outputfile);
         } else {
           CodeGenerator::emit(llvmModule.get(), outputfile);
         }
@@ -838,17 +856,17 @@ int main(int argc, char *argv[]) {
        * them just in case.  We do not want to count these lines toward
        * coverage goals since a working compiler will never cover these.
        */
-      LOG_S(ERROR) << "topc: " << e.what();	// LCOV_EXCL_LINE
-      LOG_S(ERROR) << "topc: internal error";	// LCOV_EXCL_LINE
-      std::exit(EXIT_FAILURE);			// LCOV_EXCL_LINE
+      LOG_S(ERROR) << "topc: " << e.what();   // LCOV_EXCL_LINE
+      LOG_S(ERROR) << "topc: internal error"; // LCOV_EXCL_LINE
+      std::exit(EXIT_FAILURE);                // LCOV_EXCL_LINE
     }
   } catch (SemanticError &e) {
     // Unsupported SOP later-phase requests are diagnosed before analysis.
     LOG_S(ERROR) << "topc: " << e.what();
     return EXIT_FAILURE;
   } catch (ParseError &e) {
-    LOG_S(ERROR) << "topc: " << e.what();	// LCOV_EXCL_LINE
-    LOG_S(ERROR) << "topc: parse error";	// LCOV_EXCL_LINE
-    std::exit(EXIT_FAILURE);			// LCOV_EXCL_LINE
+    LOG_S(ERROR) << "topc: " << e.what(); // LCOV_EXCL_LINE
+    LOG_S(ERROR) << "topc: parse error";  // LCOV_EXCL_LINE
+    std::exit(EXIT_FAILURE);              // LCOV_EXCL_LINE
   } // LCOV_EXCL_LINE
 } // LCOV_EXCL_LINE

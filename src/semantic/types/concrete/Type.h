@@ -8,6 +8,8 @@
  * TOP type hierarchy.
  */
 
+#include "ReferenceMode.h"
+#include "ReferenceType.h"
 #include "TopAlpha.h"
 #include "TopBorrowRef.h"
 #include "TopFunction.h"
@@ -15,8 +17,7 @@
 #include "TopModeVar.h"
 #include "TopMu.h"
 #include "TopOwningRef.h"
-#include "ReferenceMode.h"
-#include "ReferenceType.h"
+#include "TopSequence.h"
 #include "TopSumType.h"
 #include "TopType.h"
 #include "TopVar.h"

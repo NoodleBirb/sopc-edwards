@@ -21,6 +21,7 @@
  */
 class PrettyPrinter : public ASTVisitor {
 public:
+  bool visitMaterializedLambdaBody() const override { return true; }
   PrettyPrinter() : os(std::cout), indentChar(' '), indentSize(2) {}
   PrettyPrinter(std::ostream &os, char indentChar, int indentSize)
       : os(os), indentChar(indentChar), indentSize(indentSize) {}

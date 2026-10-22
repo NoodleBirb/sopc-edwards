@@ -1,8 +1,8 @@
 #pragma once
 
 #include "CallGraph.h"
-#include "Unifier.h"
 #include "TypeConstraintVisitor.h"
+#include "Unifier.h"
 
 /*! \class PolyTypeConstraintVisitor
  *
@@ -13,6 +13,7 @@
  */
 class PolyTypeConstraintVisitor : public TypeConstraintVisitor {
 public:
+  void endVisit(ASTLambdaExpr *element) override;
   explicit PolyTypeConstraintVisitor(
       SymbolTable *pTable, CallGraph *callGraph, std::shared_ptr<Unifier> u,
       std::unique_ptr<ConstraintHandler> handler);

@@ -12,7 +12,8 @@ results, see [topc-analysis-views-demo.md](topc-analysis-views-demo.md).
 
 A full compilation processes a program in this order:
 
-1. Parse TOP source and construct the AST.
+1. Parse TOP/SOP source and construct the AST. Materialize noncapturing
+   lambdas as linked synthetic functions for semantic analysis.
 2. Build the symbol table.
 3. Validate assignability and source-level borrow positions.
 4. Validate algebraic type names, patterns, and case coverage.
@@ -344,3 +345,40 @@ The architecture intentionally keeps these concerns separate:
 
 Validation is duplicated in a few phases, and authoritative
 constructor-expression checks remain a known gap.
+
+
+## SOP Semantic Extensions
+
+`TopSequence` represents `Seq(T)` structurally. Literals unify every element
+with one type and reject undetermined element types after inference. Sequences
+always classify as Own, including sequences of Copy elements. Indexing and
+length read their base; slicing creates separate owned storage and requires
+Copy elements.
+
+Borrowed iteration carries a conditional element/binder constraint through
+generalized function schemes: Copy elements bind as `T`, while Own elements
+bind as `borrow&T`. Each call instantiates that constraint with its function
+type. A borrowed loop binder is always Copy and cannot carry ownership out of
+the sequence. The loop protects its owner for the whole body.
+
+SOP extends the existing borrow position walk and move walk. Indexed borrows
+and borrow-derived call results retain their sequence provenance, and owner
+moves are forbidden for the whole receiving call or borrowed loop. Lambda
+bodies are ordinary synthetic functions for call targets, inference, and effect
+summaries; source expressions remain available to printers.
+
+Instantiated sequence requirements supplement the ordinary formal Copy
+requirements. They check element extraction, copying slices, borrow escape,
+loop binder uses, and whether a callee knows the element shape required for
+recursive cleanup. Generic borrowed loop binders defer their callee requirements
+until the enclosing function is instantiated.
+
+The SOP `DestructionPlan` extends `MoveAnalysis::DestructionPlan`, preserving its
+function exits, arm exits, temporary-reference frees, consuming matches, and
+discarded payloads for TOP lowering. Additional shared cleanup actions identify
+sequence owners and temporaries, cleanup points, transfers, and recursive
+recipes. They consume the same validated move exit states. Named destruction
+nodes reference these actions, and `--pownership --constraint` prints their
+details separately from the named destruction count. Owned sequence contents
+are destroyed before their container storage. SOP LLVM lowering remains the
+work of Deliverable 4.

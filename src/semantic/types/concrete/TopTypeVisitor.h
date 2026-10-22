@@ -23,6 +23,8 @@
  */
 class TopTypeVisitor {
 public:
+  virtual bool visit(TopSequence *element) { return true; }
+  virtual void endVisit(TopSequence *element) {}
   virtual bool visit(TopAlpha *element) { return true; }
   virtual void endVisit(TopAlpha *element) {}
   virtual bool visit(TopFunction *element) { return true; }

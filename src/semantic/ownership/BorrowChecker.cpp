@@ -1,6 +1,6 @@
 #include "BorrowChecker.h"
-#include "RuleToggles.h"
 #include "../SemanticLogging.h"
+#include "RuleToggles.h"
 
 #include "ASTAssignStmt.h"
 #include "ASTBinaryExpr.h"
@@ -10,12 +10,19 @@
 #include "ASTCaseStmt.h"
 #include "ASTDeRefExpr.h"
 #include "ASTErrorStmt.h"
+#include "ASTForStmt.h"
 #include "ASTFunAppExpr.h"
 #include "ASTFunction.h"
 #include "ASTIfStmt.h"
+#include "ASTIndexExpr.h"
+#include "ASTLambdaExpr.h"
+#include "ASTLengthExpr.h"
 #include "ASTOutputStmt.h"
 #include "ASTProgram.h"
+#include "ASTRange.h"
 #include "ASTReturnStmt.h"
+#include "ASTSequenceExpr.h"
+#include "ASTSliceExpr.h"
 #include "ASTSumCtorExpr.h"
 #include "ASTVariableExpr.h"
 #include "ASTWhileStmt.h"
@@ -23,6 +30,7 @@
 #include "ReferenceMode.h"
 #include "ReferenceType.h"
 #include "SymbolTable.h"
+#include "TopBorrowRef.h"
 #include "TopVar.h"
 #include "TypeInference.h"
 
@@ -32,8 +40,7 @@
 #include <utility>
 
 std::vector<BorrowChecker::BorrowTraceEvent> BorrowChecker::lastTrace;
-std::vector<BorrowChecker::BorrowProvenanceEvent>
-    BorrowChecker::lastProvenance;
+std::vector<BorrowChecker::BorrowProvenanceEvent> BorrowChecker::lastProvenance;
 
 namespace {
 
@@ -50,7 +57,9 @@ std::string calleeName(ASTFunAppExpr *call) {
   return repr(call->getFunction());
 }
 
-bool isBorrow(ASTExpr *e) { return dynamic_cast<ASTBorrowExpr *>(e) != nullptr; }
+bool isBorrow(ASTExpr *e) {
+  return dynamic_cast<ASTBorrowExpr *>(e) != nullptr;
+}
 
 void rejectPosition(int line, const char *where) {
   std::ostringstream oss;
@@ -86,6 +95,17 @@ bool BorrowChecker::visit(ASTFunAppExpr *element) {
                      element->getColumn(), repr(borrow), calleeName(element),
                      index});
     }
+  }
+  return true;
+}
+
+bool BorrowChecker::visit(ASTForStmt *loop) {
+  if (auto *borrow = dynamic_cast<ASTBorrowExpr *>(loop->getInput())) {
+    approvedBorrows.insert(borrow);
+    addProvenance(provenance,
+                  {BorrowProvenanceEvent::Kind::Loop, borrow->getLine(),
+                   borrow->getColumn(), repr(borrow), 0, loop->getLine(),
+                   loop->getColumn(), repr(borrow), "", 0});
   }
   return true;
 }
@@ -169,7 +189,15 @@ private:
   // call actual, where a borrow-derived value may flow. Reborrow, Deref, and
   // Scrutinee: under `&`, under `*`, and as a `case *` scrutinee, where an
   // alias is only looked at.
-  enum class Ctx { Taken, Argument, Reborrow, Deref, Scrutinee };
+  enum class Ctx {
+    Taken,
+    Argument,
+    Reborrow,
+    Deref,
+    Scrutinee,
+    Read,
+    Iterable
+  };
 
   struct BorrowOrigin {
     bool derived = false;
@@ -188,6 +216,28 @@ private:
   std::set<std::string> aliasNames;
 
   void checkStmt(ASTStmt *stmt) {
+    if (auto *loop = dynamic_cast<ASTForStmt *>(stmt)) {
+      if (auto *input = dynamic_cast<ASTExpr *>(loop->getInput())) {
+        checkExpr(input, Ctx::Iterable);
+        if (dynamic_cast<TopBorrowRef *>(
+                types->getInferredType(input, current->getDecl()).get())) {
+          if (!dynamic_cast<ASTBorrowExpr *>(input))
+            trace.push_back(
+                {input->getLine(), input->getColumn(), repr(input), true});
+          addProvenance(provenance,
+                        {BorrowProvenanceEvent::Kind::Loop, input->getLine(),
+                         input->getColumn(), repr(input), 0, loop->getLine(),
+                         loop->getColumn(), repr(input), "", 0});
+        }
+      } else if (auto *range = dynamic_cast<ASTRange *>(loop->getInput())) {
+        checkExpr(range->getStart(), Ctx::Taken);
+        checkExpr(range->getEnd(), Ctx::Taken);
+      }
+      if (loop->getStep())
+        checkExpr(loop->getStep(), Ctx::Taken);
+      checkStmt(loop->getBody());
+      return;
+    }
     if (auto *assign = dynamic_cast<ASTAssignStmt *>(stmt)) {
       if (auto *target = dynamic_cast<ASTDeRefExpr *>(assign->getLHS())) {
         // Write-through: the *slot* is taken over, so it must be Copy.
@@ -263,6 +313,8 @@ private:
   /* \p escapeSink names the position if a borrow-derived value may not flow
    * into it (checked after the expression's own operands). */
   void checkExpr(ASTExpr *expr, Ctx ctx, const char *escapeSink = nullptr) {
+    if (dynamic_cast<ASTLambdaExpr *>(expr))
+      return;
     if (auto *var = dynamic_cast<ASTVariableExpr *>(expr)) {
       if ((ctx == Ctx::Taken || ctx == Ctx::Argument) &&
           aliasNames.count(var->getName()) > 0) {
@@ -281,7 +333,7 @@ private:
       checkExpr(deref->getPtr(), Ctx::Deref);
     } else if (auto *borrow = dynamic_cast<ASTBorrowExpr *>(expr)) {
       checkExpr(borrow->getVar(), Ctx::Reborrow);
-      bool approved = ctx == Ctx::Argument;
+      bool approved = ctx == Ctx::Argument || ctx == Ctx::Iterable;
       trace.push_back(
           {borrow->getLine(), borrow->getColumn(), repr(borrow), approved});
       if (!approved) {
@@ -293,6 +345,20 @@ private:
       for (auto *actual : call->getActuals()) {
         checkExpr(actual, Ctx::Argument);
       }
+    } else if (auto *index = dynamic_cast<ASTIndexExpr *>(expr)) {
+      checkExpr(index->getSequence(), Ctx::Read);
+      checkExpr(index->getIndex(), Ctx::Taken);
+    } else if (auto *length = dynamic_cast<ASTLengthExpr *>(expr)) {
+      checkExpr(length->getSequence(), Ctx::Read);
+    } else if (auto *slice = dynamic_cast<ASTSliceExpr *>(expr)) {
+      checkExpr(slice->getSequence(), Ctx::Read);
+      if (slice->getLowerBound())
+        checkExpr(slice->getLowerBound(), Ctx::Taken);
+      if (slice->getUpperBound())
+        checkExpr(slice->getUpperBound(), Ctx::Taken);
+    } else if (auto *sequence = dynamic_cast<ASTSequenceExpr *>(expr)) {
+      for (auto *element : sequence->getElements())
+        checkExpr(element, Ctx::Taken, "sequence storage");
     } else if (auto *ctor = dynamic_cast<ASTSumCtorExpr *>(expr)) {
       // A payload lives in a heap box that outlives the call.
       for (auto *payload : ctor->getArgs()) {
@@ -345,35 +411,32 @@ private:
    * value derived from) one of its borrowed actuals. */
   BorrowOrigin borrowOrigin(ASTExpr *expr) const {
     if (auto *borrow = dynamic_cast<ASTBorrowExpr *>(expr)) {
-      return {true, true, borrow->getLine(), borrow->getColumn(), repr(borrow),
-              0};
+      return {true,         true, borrow->getLine(), borrow->getColumn(),
+              repr(borrow), 0};
     }
     auto *call = dynamic_cast<ASTFunAppExpr *>(expr);
-    if (call == nullptr) {
+    if (!call)
       return {};
+    BorrowOrigin combined;
+    for (auto *target : effects->targets(call)) {
+      const auto *summary = effects->get(target->getDecl());
+      if (!summary ||
+          (summary->returnOrigin !=
+               FunctionEffectSummaries::ReturnOrigin::FromFormal &&
+           summary->returnOrigin !=
+               FunctionEffectSummaries::ReturnOrigin::BorrowFromFormal))
+        continue;
+      auto actuals = call->getActuals();
+      int index = summary->returnFormalIndex;
+      if (index < 0 || static_cast<std::size_t>(index) >= actuals.size())
+        continue;
+      auto origin = borrowOrigin(actuals[index]);
+      if (origin.derived) {
+        ++origin.hop;
+        combined = origin;
+      }
     }
-    auto *calleeVar = dynamic_cast<ASTVariableExpr *>(call->getFunction());
-    ASTDeclNode *calleeDecl =
-        calleeVar != nullptr ? sym->getFunction(calleeVar->getName()) : nullptr;
-    const auto *summary =
-        calleeDecl != nullptr ? effects->get(calleeDecl) : nullptr;
-    if (summary == nullptr ||
-        (summary->returnOrigin !=
-             FunctionEffectSummaries::ReturnOrigin::FromFormal &&
-         summary->returnOrigin !=
-             FunctionEffectSummaries::ReturnOrigin::BorrowFromFormal)) {
-      return {};
-    }
-    int index = summary->returnFormalIndex;
-    auto actuals = call->getActuals();
-    if (index < 0 || static_cast<std::size_t>(index) >= actuals.size()) {
-      return {}; // LCOV_EXCL_LINE -- defensive: formal index is always in range
-    }
-    auto origin = borrowOrigin(actuals[static_cast<std::size_t>(index)]);
-    if (origin.derived) {
-      origin.hop++;
-    }
-    return origin;
+    return combined;
   }
 
   // `*e` in a position that takes the value (or, for `what == "overwrite"`,
@@ -386,9 +449,10 @@ private:
       // payloads are Copy), so `**p` reads a Copy whatever a turns out to be.
       auto ptrType = std::dynamic_pointer_cast<ReferenceType>(
           types->getInferredType(deref->getPtr(), current->getDecl()));
-      auto mode = ptrType != nullptr ? std::dynamic_pointer_cast<ReferenceMode>(
-                                           ptrType->getMode())
-                                     : nullptr;
+      auto mode =
+          ptrType != nullptr
+              ? std::dynamic_pointer_cast<ReferenceMode>(ptrType->getMode())
+              : nullptr;
       if (mode != nullptr && mode->getMode() == ReferenceMode::Mode::Own) {
         return;
       }
@@ -454,8 +518,7 @@ BorrowChecker::checkPositions(ASTProgram *p, SymbolTable *sym,
     walk.checkFunction(f);
   }
   publish(std::move(walk.trace), std::move(walk.provenance));
-  SEMANTIC_LOG(1, "borrow-positions")
-      << "complete events=" << lastTrace.size();
+  SEMANTIC_LOG(1, "borrow-positions") << "complete events=" << lastTrace.size();
   return std::move(walk.requirements);
 }
 
@@ -466,14 +529,16 @@ BorrowChecker::checkPositions(ASTProgram *p, SymbolTable *sym,
 void BorrowChecker::addProvenance(std::vector<BorrowProvenanceEvent> &events,
                                   BorrowProvenanceEvent event) {
   for (const auto &existing : events) {
-    if (existing.kind == event.kind && existing.originLine == event.originLine &&
+    if (existing.kind == event.kind &&
+        existing.originLine == event.originLine &&
         existing.originColumn == event.originColumn &&
         existing.hop == event.hop && existing.useLine == event.useLine &&
         existing.useColumn == event.useColumn &&
         existing.argumentIndex == event.argumentIndex &&
         existing.expression == event.expression &&
         existing.callee == event.callee) {
-      return; // LCOV_EXCL_LINE -- defensive: one pass produces no exact-duplicate event
+      return; // LCOV_EXCL_LINE -- defensive: one pass produces no
+              // exact-duplicate event
     }
   }
   events.push_back(std::move(event));

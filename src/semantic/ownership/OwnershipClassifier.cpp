@@ -12,6 +12,7 @@
 #include "TopModeVar.h"
 #include "TopMu.h"
 #include "TopOwningRef.h"
+#include "TopSequence.h"
 #include "TopSumType.h"
 #include "TopVar.h"
 
@@ -71,6 +72,8 @@ OwnershipClass OwnershipClassifier::classifyType(const TopType *type) {
   if (type == nullptr) {
     return OwnershipClass::Copy;
   }
+  if (dynamic_cast<const TopSequence *>(type))
+    return OwnershipClass::Own;
 
   // TopOwningRef → Own (owns a heap resource)
   if (dynamic_cast<const TopOwningRef *>(type) != nullptr) {
@@ -85,11 +88,11 @@ OwnershipClass OwnershipClassifier::classifyType(const TopType *type) {
   if (auto *reference = dynamic_cast<const ReferenceType *>(type)) {
     if (auto mode =
             std::dynamic_pointer_cast<ReferenceMode>(reference->getMode())) {
-      return mode->getMode() == ReferenceMode::Mode::Own
-                 ? OwnershipClass::Own
-                 : OwnershipClass::Copy;
+      return mode->getMode() == ReferenceMode::Mode::Own ? OwnershipClass::Own
+                                                         : OwnershipClass::Copy;
     }
-    if (std::dynamic_pointer_cast<TopModeVar>(reference->getMode()) != nullptr) {
+    if (std::dynamic_pointer_cast<TopModeVar>(reference->getMode()) !=
+        nullptr) {
       return OwnershipClass::Copy;
     }
     // LCOV_EXCL_START -- defensive: a solved reference always has a concrete or

@@ -25,6 +25,7 @@ target_sources(
                    ${CMAKE_CURRENT_SOURCE_DIR}/cfg/CFGRenderer.cpp
                    ${CMAKE_CURRENT_SOURCE_DIR}/ownership/DestructionPass.h
                    ${CMAKE_CURRENT_SOURCE_DIR}/ownership/DestructionPass.cpp
+                   ${CMAKE_CURRENT_SOURCE_DIR}/ownership/DestructionPlan.cpp
                    ${CMAKE_CURRENT_SOURCE_DIR}/ownership/OwnershipClassifier.h
                    ${CMAKE_CURRENT_SOURCE_DIR}/ownership/OwnershipClassifier.cpp
                    ${CMAKE_CURRENT_SOURCE_DIR}/ownership/OwnershipTypeRules.h

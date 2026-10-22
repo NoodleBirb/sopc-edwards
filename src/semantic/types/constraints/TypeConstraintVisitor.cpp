@@ -1,25 +1,90 @@
 #include "TypeConstraintVisitor.h"
 #include "ASTCaseStmt.h"
 #include "ASTCtorPattern.h"
+#include "ASTForStmt.h"
+#include "ASTIndexExpr.h"
+#include "ASTLambdaExpr.h"
+#include "ASTLengthExpr.h"
 #include "ASTPattern.h"
+#include "ASTRange.h"
+#include "ASTSequenceExpr.h"
+#include "ASTSliceExpr.h"
 #include "ASTSumCtorExpr.h"
 #include "ASTSumTypeDecl.h"
 #include "ASTSumVariant.h"
 #include "ASTVarPattern.h"
 #include "ASTWildcardPattern.h"
+#include "ReferenceType.h"
 #include "TopAlpha.h"
 #include "TopBorrowRef.h"
 #include "TopFunction.h"
 #include "TopInt.h"
 #include "TopModeVar.h"
 #include "TopOwningRef.h"
-#include "ReferenceType.h"
+#include "TopSequence.h"
 #include "TopSumType.h"
 #include "TopVar.h"
 
+void TypeConstraintVisitor::endVisit(ASTSequenceExpr *e) {
+  auto element = std::make_shared<TopAlpha>(e, "element");
+  constraintHandler->handle(astToVar(e),
+                            std::make_shared<TopSequence>(element));
+  for (auto *value : e->getElements())
+    constraintHandler->handle(astToVar(value), element);
+}
+void TypeConstraintVisitor::endVisit(ASTIndexExpr *e) {
+  constraintHandler->handle(astToVar(e->getSequence()),
+                            std::make_shared<TopSequence>(astToVar(e)));
+  constraintHandler->handle(astToVar(e->getIndex()),
+                            std::make_shared<TopInt>());
+}
+void TypeConstraintVisitor::endVisit(ASTLengthExpr *e) {
+  constraintHandler->handle(
+      astToVar(e->getSequence()),
+      std::make_shared<TopSequence>(std::make_shared<TopAlpha>(e, "element")));
+  constraintHandler->handle(astToVar(e), std::make_shared<TopInt>());
+}
+void TypeConstraintVisitor::endVisit(ASTSliceExpr *e) {
+  auto sequence =
+      std::make_shared<TopSequence>(std::make_shared<TopAlpha>(e, "element"));
+  constraintHandler->handle(astToVar(e->getSequence()), sequence);
+  constraintHandler->handle(astToVar(e), sequence);
+  if (e->getLowerBound())
+    constraintHandler->handle(astToVar(e->getLowerBound()),
+                              std::make_shared<TopInt>());
+  if (e->getUpperBound())
+    constraintHandler->handle(astToVar(e->getUpperBound()),
+                              std::make_shared<TopInt>());
+}
+void TypeConstraintVisitor::endVisit(ASTRange *e) {
+  constraintHandler->handle(astToVar(e->getStart()),
+                            std::make_shared<TopInt>());
+  constraintHandler->handle(astToVar(e->getEnd()), std::make_shared<TopInt>());
+}
+void TypeConstraintVisitor::endVisit(ASTForStmt *e) {
+  if (dynamic_cast<ASTRange *>(e->getInput()))
+    constraintHandler->handle(astToVar(e->getBinder()),
+                              std::make_shared<TopInt>());
+  else {
+    auto element = std::make_shared<TopAlpha>(e, "element");
+    constraintHandler->handle(
+        astToVar(e->getInput()),
+        std::make_shared<TopBorrowRef>(std::make_shared<TopSequence>(element)));
+    iterations.push_back({element, astToVar(e->getBinder()), e});
+  }
+  if (e->getStep())
+    constraintHandler->handle(astToVar(e->getStep()),
+                              std::make_shared<TopInt>());
+}
+void TypeConstraintVisitor::endVisit(ASTLambdaExpr *e) {
+  if (e->getFunction())
+    constraintHandler->handle(astToVar(e),
+                              astToVar(e->getFunction()->getDecl()));
+}
+
 TypeConstraintVisitor::TypeConstraintVisitor(
     SymbolTable *st, std::shared_ptr<ConstraintHandler> handler)
-  : symbolTable(st), constraintHandler(std::move(handler)) {};
+    : symbolTable(st), constraintHandler(std::move(handler)) {};
 
 /*! \fn astToVar
  *  \brief Convert an AST node to a type variable.
@@ -176,8 +241,10 @@ void TypeConstraintVisitor::endVisit(ASTBorrowExpr *element) {
  *   [[E]] = ref&[[*E]]
  */
 void TypeConstraintVisitor::endVisit(ASTDeRefExpr *element) {
-  constraintHandler->handle(std::make_shared<ReferenceType>(std::make_shared<TopModeVar>(), astToVar(element)),
-                            astToVar(element->getPtr()));
+  constraintHandler->handle(
+      std::make_shared<ReferenceType>(std::make_shared<TopModeVar>(),
+                                      astToVar(element)),
+      astToVar(element->getPtr()));
 }
 
 /*! \brief Type rules for assignments.
@@ -196,7 +263,8 @@ void TypeConstraintVisitor::endVisit(ASTAssignStmt *element) {
   // If this is an assignment through a pointer, use the second rule above
   if (auto lptr = dynamic_cast<ASTDeRefExpr *>(element->getLHS())) {
     constraintHandler->handle(
-      std::make_shared<ReferenceType>(std::make_shared<TopModeVar>(), astToVar(element->getRHS())),
+        std::make_shared<ReferenceType>(std::make_shared<TopModeVar>(),
+                                        astToVar(element->getRHS())),
         astToVar(lptr->getPtr()));
   } else {
     constraintHandler->handle(astToVar(element->getLHS()),
@@ -338,9 +406,9 @@ void TypeConstraintVisitor::endVisit(ASTCaseStmt *element) {
     if (!variant)
       continue;
     auto variantParams = variant->getParams();
-    auto armPatterns   = arm->getPatterns();
-    for (std::size_t i = 0;
-         i < armPatterns.size() && i < variantParams.size(); ++i) {
+    auto armPatterns = arm->getPatterns();
+    for (std::size_t i = 0; i < armPatterns.size() && i < variantParams.size();
+         ++i) {
       constrainPattern(armPatterns[i], astToVar(variantParams[i]),
                        variantParams[i]);
     }
@@ -394,12 +462,10 @@ void TypeConstraintVisitor::constrainPattern(ASTPattern *pat,
 
     // Recurse into sub-patterns.
     auto innerParams = innerVariant->getParams();
-    auto &subPats    = cp->getSubPatternsShared();
-    for (std::size_t j = 0;
-         j < subPats.size() && j < innerParams.size(); ++j) {
+    auto &subPats = cp->getSubPatternsShared();
+    for (std::size_t j = 0; j < subPats.size() && j < innerParams.size(); ++j) {
       constrainPattern(subPats[j].get(), astToVar(innerParams[j]),
                        innerParams[j]);
     }
-
   }
 }

@@ -91,6 +91,9 @@ std::string joinWithDelim(std::vector<std::string> &visitResults,
 void PrettyPrinter::endVisit(ASTProgram *element) {
   int total = static_cast<int>(element->getTypedecls().size()) +
               static_cast<int>(element->getFunctions().size());
+  for (auto *function : element->getFunctions())
+    if (function->isLambdaFunction())
+      --total;
   os << joinWithDelim(visitResults, "\n", total, 1);
   os.flush();
 }
@@ -110,6 +113,8 @@ void PrettyPrinter::endVisit(ASTProgram *element) {
  * should extend.
  */
 bool PrettyPrinter::visit(ASTFunction *element) {
+  if (element->isLambdaFunction())
+    return false;
   indentLevel++;
   return true;
 }
@@ -120,6 +125,8 @@ bool PrettyPrinter::visit(ASTFunction *element) {
  * they are on the visit stack in that order.
  */
 void PrettyPrinter::endVisit(ASTFunction *element) {
+  if (element->isLambdaFunction())
+    return;
   auto bodyString =
       joinWithDelim(visitResults, "\n", element->getStmts().size(), 0);
   auto declString =

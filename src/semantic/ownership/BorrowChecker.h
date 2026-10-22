@@ -14,6 +14,7 @@ class ASTBorrowExpr;
 class ASTErrorStmt;
 class ASTFunAppExpr;
 class ASTFunction;
+class ASTForStmt;
 class ASTOutputStmt;
 class ASTProgram;
 class ASTReturnStmt;
@@ -27,11 +28,16 @@ class TypeInference;
  *
  * Every rule here is decided by the position of an expression in its parent:
  *
- * | value                                  | may appear                                   | elsewhere                       |
- * | -------------------------------------- | -------------------------------------------- | ------------------------------- |
- * | `&x`                                   | as a call argument                           | borrow-position                 |
- * | a borrow-derived call result           | as a call argument, under `*`                | borrow-escape (assignment, return, constructor payload) |
- * | an alias: an Own-typed `*e` on a borrow, or an Own-typed binder of `case *e` | under `&`, under `*`, as a `case *` scrutinee, as a write target `*e = v` (Copy slot) | alias-move-out, alias-binder, alias-overwrite |
+ * | value                                  | may appear | elsewhere | |
+ * -------------------------------------- |
+ * -------------------------------------------- |
+ * ------------------------------- | | `&x`                                   |
+ * as a call argument                           | borrow-position | | a
+ * borrow-derived call result           | as a call argument, under `*` |
+ * borrow-escape (assignment, return, constructor payload) | | an alias: an
+ * Own-typed `*e` on a borrow, or an Own-typed binder of `case *e` | under `&`,
+ * under `*`, as a `case *` scrutinee, as a write target `*e = v` (Copy slot) |
+ * alias-move-out, alias-binder, alias-overwrite |
  *
  * check() runs with the weeding passes, before types, and needs no types:
  * `&x` is a borrow syntactically. It names the position where it can (an
@@ -58,7 +64,7 @@ public:
   };
 
   struct BorrowProvenanceEvent {
-    enum class Kind { Direct, Flow };
+    enum class Kind { Direct, Flow, Loop };
 
     Kind kind;
     int originLine;
@@ -105,6 +111,7 @@ private:
   static std::vector<BorrowProvenanceEvent> lastProvenance;
 
   bool visit(ASTFunAppExpr *element) override;
+  bool visit(ASTForStmt *element) override;
   bool visit(ASTBinaryExpr *element) override;
   bool visit(ASTOutputStmt *element) override;
   bool visit(ASTErrorStmt *element) override;
