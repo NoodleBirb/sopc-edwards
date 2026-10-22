@@ -5,6 +5,9 @@ add_executable(semantic_unit_tests)
 target_sources(
   semantic_unit_tests
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/SOPFrontEndTest.cpp
+          ${CMAKE_CURRENT_SOURCE_DIR}/SOPD3Cases.cpp
+          ${CMAKE_CURRENT_SOURCE_DIR}/SOPD3SemanticTest.cpp
+          ${CMAKE_CURRENT_SOURCE_DIR}/SOPD3ViewsTest.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/SymbolTableTest.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/LocalNameCollectorTest.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/CheckAssignableTest.cpp
@@ -34,5 +37,8 @@ target_link_libraries(
           cfa
           coverage_config
           Catch2::Catch2WithMain)
+add_dependencies(semantic_unit_tests topc)
+target_compile_definitions(semantic_unit_tests PRIVATE
+  SOP_D3_TOPC="$<TARGET_FILE:topc>")
 include(Catch)
 catch_discover_tests(semantic_unit_tests)
