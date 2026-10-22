@@ -101,3 +101,31 @@ TEST_CASE("CFGRenderer: conditional edge order is deterministic",
   REQUIRE(dotFalsePos != std::string::npos);
   REQUIRE(dotTruePos < dotFalsePos);
 }
+
+TEST_CASE("CFGRenderer: a block that ends in return shows its statements",
+          "[cfg][CFGRenderer]") {
+  auto ast = parseProgram(R"(
+    g(n) {
+      return n;
+    }
+    main() {
+      var x;
+      output g(5);
+      x = 1;
+      return x;
+    }
+  )");
+
+  auto cfgs = IntraproceduralCFGs::build(ast.get());
+  auto *mainFunction = ast->findFunctionByName("main");
+  REQUIRE(mainFunction != nullptr);
+
+  std::ostringstream ascii;
+  CFGRenderer::renderAscii(cfgs->get(mainFunction), ascii);
+  REQUIRE_THAT(ascii.str(), Catch::Matchers::ContainsSubstring(
+                                "output g(5); | x = 1; | return x;"));
+
+  std::ostringstream dot;
+  CFGRenderer::renderDot(cfgs->get(mainFunction), dot);
+  REQUIRE_THAT(dot.str(), Catch::Matchers::ContainsSubstring("output g(5);"));
+}

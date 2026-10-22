@@ -36,24 +36,26 @@ std::string blockText(const BasicBlock &block) {
     return block.getName();
   }
 
+  // A block's statements run before its terminator; a block that ends in a
+  // return has both.
+  std::vector<const ASTStmt *> shown(block.getStatements().begin(),
+                                     block.getStatements().end());
   if (block.getTerminatorStatement() != nullptr) {
-    std::ostringstream text;
-    text << *block.getTerminatorStatement();
-    return text.str();
+    shown.push_back(block.getTerminatorStatement());
   }
 
-  if (!block.getStatements().empty()) {
-    std::ostringstream text;
-    for (std::size_t i = 0; i < block.getStatements().size(); ++i) {
-      if (i > 0) {
-        text << " | ";
-      }
-      text << *block.getStatements()[i];
+  if (shown.empty()) {
+    return block.getName();
+  }
+
+  std::ostringstream text;
+  for (std::size_t i = 0; i < shown.size(); ++i) {
+    if (i > 0) {
+      text << " | ";
     }
-    return text.str();
+    text << *shown[i];
   }
-
-  return block.getName();
+  return text.str();
 }
 
 int edgeOrder(const CFGEdge &edge) {
