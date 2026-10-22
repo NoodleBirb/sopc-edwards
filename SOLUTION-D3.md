@@ -1,0 +1,1 @@
+A big thing that came up when designing requirements for this assignment was with Slices. It was important to realize that Slices are only permitted when the values of a Sequence are classified as Copy. This is something that doesn't come up in most languages these days, though I have had to make deep copies for Java in order to not cause issues.
