@@ -1,0 +1,7 @@
+// Rejected: a copying slice cannot duplicate owning elements.
+main() {
+    var s, slice;
+    s = [alloc 1];
+    slice = s[:];
+    return #slice;
+}

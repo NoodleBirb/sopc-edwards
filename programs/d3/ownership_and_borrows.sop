@@ -1,0 +1,18 @@
+// Accepted: moves, returned ownership, direct/loop borrows, lambdas, and ranges.
+// main has one named destroy (t). The temporary mk() is cleaned after length.
+mk() { return [4, 5]; }
+read(p) { return **p; }
+pass(q) { return q; }
+apply(f, v) { return f(v); }
+
+main() {
+    var p, s, t, e, n, g, i;
+    p = alloc 7;
+    s = [p, alloc 9];
+    t = pass(s);
+    n = read(&t[0]);
+    for (e : &t) { n = n + read(e); }
+    g = (x) => x + 1;
+    for (i : 0 .. 2) { n = n + i; }
+    return apply(g, n) + #mk();
+}

@@ -1,0 +1,7 @@
+// Rejected by full ownership analysis: s was moved into t.
+main() {
+    var s, t;
+    s = [1, 2];
+    t = s;
+    return s[0];
+}

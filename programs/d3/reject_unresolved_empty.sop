@@ -1,0 +1,6 @@
+// Rejected: length does not determine the sequence's element type.
+main() {
+    var s;
+    s = [];
+    return #s;
+}

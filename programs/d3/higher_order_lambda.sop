@@ -1,0 +1,10 @@
+// Accepted: the call graph resolves apply's call through fn to the lambda.
+// increment is (int) -> int and Copy; main has no named destroys.
+apply(fn, argument) { return fn(argument); }
+
+main() {
+    var increment, result;
+    increment = (x) => x + 1;
+    result = apply(increment, 41);
+    return result;
+}

@@ -1,0 +1,12 @@
+// Accepted: contextual empty-literal inference, nested sequences, Copy indexing,
+// and a slice with independent storage. main has three named destroys.
+id(value) { return value; }
+
+main() {
+    var nested, source, slice, first;
+    nested = [[], [id(1), 2]];
+    source = [3, 4, 5];
+    slice = source[0:2];
+    first = source[0];
+    return first + #slice + #nested;
+}

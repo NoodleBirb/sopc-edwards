@@ -1,0 +1,10 @@
+// Rejected: size must dispose of q, but its generic element type does not
+// supply the information needed to destroy the owned elements.
+size(q) { return #q; }
+
+main() {
+    var s, n;
+    s = [alloc 1];
+    n = size(s);
+    return n;
+}

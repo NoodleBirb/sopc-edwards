@@ -1,0 +1,10 @@
+// Rejected: the call borrows an element of s while also consuming s.
+// Swapping the arguments and corresponding parameters does not repair it.
+take(owner, element) { return #owner + *element; }
+
+main() {
+    var s, n;
+    s = [1, 2];
+    n = take(s, &s[0]);
+    return n;
+}
