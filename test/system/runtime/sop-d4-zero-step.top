@@ -1,0 +1,8 @@
+// T22: R1, R2, R37
+main(lo, hi, step) {
+ var i; i = 42;
+ output 111;
+ for (i : lo .. hi by step) { output 222; }
+ output 999;
+ return i;
+}

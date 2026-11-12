@@ -1,0 +1,11 @@
+// T11: R16, R17
+set(p, value) { *p = value; return 0; }
+main() {
+ var s, ignored; s = [10, 20, 30];
+ ignored = set(&s[1], 99);
+ if (s[0] != 10) error 1101;
+ if (s[1] != 99) error 1102;
+ if (s[2] != 30) error 1103;
+ if (#s != 3) error 1104;
+ return 0;
+}

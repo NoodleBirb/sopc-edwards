@@ -34,8 +34,8 @@ cmake --build build --target top_rtlib
 
 Self-contained TOP core-feature programs that exit 0 on success and non-zero on failure.
 Each program encodes its own expected behavior (no external oracle needed).
-Every program is run twice: once normally and once with the `-do` dead-code
-elimination pass.
+Every program is run twice: once normally and once with `-do`, which disables
+optimization.
 
 Golden reference files:
 - `*.top.pppt` — expected output of `topc --psource --ptype`
@@ -119,3 +119,34 @@ topc --past=ascii --output-dir test/system/selftests test/system/selftests/ptr4.
 ```
 
 Commit the updated reference files alongside the compiler change.
+
+## SOP Deliverable 4
+
+D4 test cases, requirement links, and the memory-safety matrix are recorded in
+`REQUIREMENTS4.md`. `sop-d4-cases.json` supplies the executable case manifest.
+
+After building `topc`, `top_rtlib`, and `codegen_unit_tests`, set `TOPCLANG` to
+the matching clang and run from the repository root:
+
+```bash
+bin/run-sop-tests.sh --check
+bin/run-sop-tests.sh --semantic-only
+bin/run-sop-tests.sh --junit /tmp/sop-d4.xml
+bin/run-sop-memory-tests.sh --junit /tmp/sop-d4-memory.xml
+ctest --test-dir build -R '^SOP[ _]D4' --output-on-failure
+```
+
+`TOPC` selects an alternate compiler build; `RTLIB` selects its runtime directory.
+The memory script instruments all valid D4 programs and enables leak detection.
+The runtime-failure suite is separate: it requires successful compilation/linking,
+the expected diagnostic category and nonzero exit, and no later source output.
+A compiler rejection or crash is a failed test, not an expected runtime failure.
+
+`bin/runtests.sh` includes new self-checks, runtime-failure cases, and CTest tests.
+To isolate preexisting system tests while implementing D4, run:
+
+```bash
+python3 test/system/run.py --exclude-sop-d4 --junit /tmp/top-regressions.xml
+```
+
+The D4 code-generation tests intentionally fail until the lowering is implemented.

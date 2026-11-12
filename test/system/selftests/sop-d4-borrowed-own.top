@@ -1,0 +1,12 @@
+// T27: R42, R46, R47, R48
+read(p) { return **p; }
+bump(p) { **p = **p + 10; return 0; }
+main() {
+ var s, e, total, ignored; s = [alloc 1, alloc 2]; total = 0;
+ for (e : &s) { ignored = bump(e); total = total + read(e); }
+ if (total != 23) error 2701;
+ if (read(&s[0]) != 11) error 2702;
+ if (read(&s[1]) != 12) error 2703;
+ if (#s != 2) error 2704;
+ return 0;
+}

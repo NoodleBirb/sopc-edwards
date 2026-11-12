@@ -1,0 +1,13 @@
+// T23: R41, R42, R44, R45, R47, R48
+main() {
+ var s, e, trace, count;
+ s = [1, 2, 3]; trace = 0; count = 0;
+ for (e : &s) { trace = trace * 10 + e; count = count + 1; e = e + 100; }
+ if (trace != 123) error 2301;
+ if (count != 3) error 2302;
+ if (s[0] != 1) error 2303;
+ if (s[1] != 2) error 2304;
+ if (s[2] != 3) error 2305;
+ if (#s != 3) error 2306;
+ return 0;
+}

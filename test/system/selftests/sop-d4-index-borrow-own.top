@@ -1,0 +1,11 @@
+// T12: R16, R17
+set(p, value) { **p = value; return 0; }
+read(p) { return **p; }
+main() {
+ var s, ignored; s = [alloc 10, alloc 20];
+ ignored = set(&s[1], 99);
+ if (read(&s[0]) != 10) error 1201;
+ if (read(&s[1]) != 99) error 1202;
+ if (#s != 2) error 1203;
+ return 0;
+}

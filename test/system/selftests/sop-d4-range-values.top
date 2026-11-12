@@ -1,0 +1,28 @@
+// T19: R29, R31, R32, R33, R34, R36
+main() {
+ var i, trace, count;
+ trace = 0; count = 0;
+ for (i : 0 .. 3) { trace = trace * 10 + i; count = count + 1; }
+ if (trace != 12) error 1901;
+ if (count != 3) error 1902;
+ if (i != 2) error 1903;
+ trace = 0; count = 0;
+ for (i : 0 .. 10 by 3) { trace = trace * 10 + i; count = count + 1; }
+ if (trace != 369) error 1904;
+ if (count != 4) error 1905;
+ if (i != 9) error 1906;
+ trace = 0; count = 0;
+ for (i : 5 .. 0 by -2) { trace = trace * 10 + i; count = count + 1; }
+ if (trace != 531) error 1907;
+ if (count != 3) error 1908;
+ if (i != 1) error 1909;
+ i = 42;
+ for (i : 5 .. 0) { error 1910; }
+ if (i != 42) error 1911;
+ for (i : 0 .. 5 by -1) { error 1912; }
+ if (i != 42) error 1913;
+ for (i : 3 .. 3) { error 1914; }
+ for (i : 3 .. 3 by -1) { error 1915; }
+ if (i != 42) error 1916;
+ return 0;
+}

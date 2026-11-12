@@ -1,0 +1,10 @@
+// T24: R41, R42, R43, R47, R48
+sum(p) { var e, total; total = 0; for (e : p) { total = total + e; } return total; }
+main() {
+ var s, empty; s = [1, 2, 3]; empty = s[0:0];
+ if (sum(&s) != 6) error 2401;
+ if (sum(&empty) != 0) error 2402;
+ if (#s != 3) error 2403;
+ if (s[1] != 2) error 2404;
+ return 0;
+}

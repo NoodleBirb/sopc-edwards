@@ -1,0 +1,22 @@
+// T29: R49, R50, R51, R52, R53, R54
+apply(f, v) { return f(v); }
+adder() { return (x) => x + 10; }
+mark(p, value) { *p = *p + 1; return value + 1; }
+main() {
+ var g, h, fs, value, deferred, calls;
+ calls = 0;
+ deferred = (p, x) => mark(p, x);
+ if (calls != 0) error 2906;
+ value = deferred(&calls, 41);
+ if (value != 42) error 2907;
+ if (calls != 1) error 2908;
+ g = (x) => x * 2; h = adder();
+ if (apply(g, 4) != 8) error 2901;
+ if (h(1) != 11) error 2902;
+ value = ((a, b) => a - b)(9, 4);
+ if (value != 5) error 2903;
+ fs = [g, h];
+ if (fs[0](5) != 10) error 2904;
+ if (fs[1](5) != 15) error 2905;
+ return 0;
+}

@@ -1,0 +1,9 @@
+// T30: R54, R56, R57
+fold(p, acc, f) { var e; for (e : p) { acc = f(acc, e); } return acc; }
+main() {
+ var s; s = [1, 2, 3, 4];
+ if (fold(&s, 0, (a, b) => a + b) != 10) error 3001;
+ if (fold(&s, 1, (a, b) => a * b) != 24) error 3002;
+ if (#s != 4) error 3003;
+ return 0;
+}

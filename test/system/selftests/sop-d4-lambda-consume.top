@@ -1,0 +1,8 @@
+// T32: R56, R58, R59, R60, R68
+apply(f, v) { return f(v); }
+main() {
+ var s, n; s = [1, 2, 3];
+ n = apply((q) => #q, s);
+ if (n != 3) error 3201;
+ return 0;
+}

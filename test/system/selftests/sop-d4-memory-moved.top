@@ -1,0 +1,8 @@
+// T35: R58, R59, R60, R66, R68
+main() {
+ var s, t; s = [1, 2, 3]; t = s;
+ if (#t != 3) error 3501;
+ if (t[0] != 1) error 3502;
+ if (t[2] != 3) error 3503;
+ return 0;
+}

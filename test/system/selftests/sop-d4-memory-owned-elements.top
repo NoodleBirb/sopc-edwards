@@ -1,0 +1,9 @@
+// T39: R58, R59, R60, R61, R66, R68
+read(p) { return **p; }
+main() {
+ var p, s; p = alloc 10; s = [p, alloc 20];
+ if (#s != 2) error 3901;
+ if (read(&s[0]) != 10) error 3902;
+ if (read(&s[1]) != 20) error 3903;
+ return 0;
+}

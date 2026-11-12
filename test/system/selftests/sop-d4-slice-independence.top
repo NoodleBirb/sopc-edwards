@@ -1,0 +1,16 @@
+// T17: R23, R24
+set(p, value) { *p = value; return 0; }
+main() {
+ var s, copy, ignored; s = [1, 2, 3]; copy = s[:];
+ ignored = set(&s[0], 99);
+ if (copy[0] != 1) error 1701;
+ ignored = set(&copy[1], 88);
+ if (s[1] != 2) error 1702;
+ if (s[0] != 99) error 1703;
+ if (copy[1] != 88) error 1704;
+ if (s[2] != 3) error 1705;
+ if (copy[2] != 3) error 1706;
+ if (#s != 3) error 1707;
+ if (#copy != 3) error 1708;
+ return 0;
+}

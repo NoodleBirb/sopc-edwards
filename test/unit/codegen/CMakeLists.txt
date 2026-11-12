@@ -1,13 +1,16 @@
 add_executable(codegen_unit_tests)
 target_sources(codegen_unit_tests
                PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/CodegenFunctionsTest.cpp
-                       ${CMAKE_CURRENT_SOURCE_DIR}/CodegenStateIsolationTest.cpp)
+                       ${CMAKE_CURRENT_SOURCE_DIR}/CodegenStateIsolationTest.cpp
+                       ${CMAKE_CURRENT_SOURCE_DIR}/SOPD4CodegenTest.cpp)
 target_include_directories(
   codegen_unit_tests
-  PRIVATE ${CMAKE_SOURCE_DIR}/src/codegen/)
+  PRIVATE ${CMAKE_SOURCE_DIR}/src/codegen/
+          ${CMAKE_SOURCE_DIR}/src/optimizer/)
 target_link_libraries(
   codegen_unit_tests
-  PRIVATE antlr4_static
+  PRIVATE optimizer
+          antlr4_static
           ${llvm_libs}
           ast
           error

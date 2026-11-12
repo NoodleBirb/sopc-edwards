@@ -1,0 +1,17 @@
+// T4: R3, R4
+mark(p, digit, expected) {
+ if (*p != expected) error 401;
+ *p = *p * 10 + digit;
+ return digit;
+}
+main() {
+ var trace, s;
+ trace = 0;
+ s = [mark(&trace, 1, 0), mark(&trace, 2, 1), mark(&trace, 3, 12)];
+ if (trace != 123) error 402;
+ if (#s != 3) error 403;
+ if (s[0] != 1) error 404;
+ if (s[1] != 2) error 405;
+ if (s[2] != 3) error 406;
+ return 0;
+}

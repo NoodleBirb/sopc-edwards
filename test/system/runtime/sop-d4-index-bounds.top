@@ -1,0 +1,8 @@
+// T8: R1, R2, R12
+main(i) {
+ var s; s = [10, 20, 30];
+ output 111;
+ output s[i];
+ output 999;
+ return 0;
+}

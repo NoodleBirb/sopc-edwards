@@ -1,0 +1,23 @@
+// T13: R18, R19, R20, R24, R25
+main() {
+ var s, a, b, c, d;
+ s = [1, 2, 3, 4, 5];
+ a = s[1:3]; b = s[:2]; c = s[3:]; d = s[:];
+ if (#a != 2) error 1301;
+ if (a[0] != 2) error 1302;
+ if (a[1] != 3) error 1303;
+ if (#b != 2) error 1304;
+ if (b[0] != 1) error 1305;
+ if (b[1] != 2) error 1306;
+ if (#c != 2) error 1307;
+ if (c[0] != 4) error 1308;
+ if (c[1] != 5) error 1309;
+ if (#d != 5) error 1310;
+ if (d[0] != 1) error 1311;
+ if (d[1] != 2) error 1312;
+ if (d[2] != 3) error 1313;
+ if (d[3] != 4) error 1314;
+ if (d[4] != 5) error 1315;
+ if (#s != 5) error 1316;
+ return 0;
+}

@@ -1,0 +1,8 @@
+// T15: R1, R2, R20, R22
+main(lo, hi) {
+ var s, result; s = [1, 2, 3];
+ output 111;
+ result = s[lo:hi];
+ output 999;
+ return #result;
+}

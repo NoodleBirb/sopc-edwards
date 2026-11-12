@@ -1,0 +1,16 @@
+// T10: R14, R64
+sequence(p) {
+ if (*p != 0) error 1001;
+ *p = 1; return [10, 20, 30];
+}
+index(p) {
+ if (*p != 1) error 1002;
+ *p = 12; return 1;
+}
+main() {
+ var trace, value;
+ trace = 0; value = sequence(&trace)[index(&trace)];
+ if (trace != 12) error 1003;
+ if (value != 20) error 1004;
+ return 0;
+}

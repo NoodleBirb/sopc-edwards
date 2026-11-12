@@ -1,0 +1,11 @@
+// T26: R40, R42
+pick(p) { *p = *p + 1; return 1; }
+main() {
+ var grid, calls, e, trace;
+ grid = [[9], [1, 2, 3]]; calls = 0; trace = 0;
+ for (e : &grid[pick(&calls)]) { trace = trace * 10 + e; }
+ if (calls != 1) error 2601;
+ if (trace != 123) error 2602;
+ if (#grid != 2) error 2603;
+ return 0;
+}

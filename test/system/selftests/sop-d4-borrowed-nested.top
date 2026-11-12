@@ -1,0 +1,13 @@
+// T25: R42, R46, R47, R48
+sumrow(p) { var e, total; total = 0; for (e : p) { total = total + e; } return total; }
+rowlen(p) { return #*p; }
+main() {
+ var grid, row, total;
+ grid = [[5, 5], [6]]; total = 0;
+ for (row : &grid) { total = total + sumrow(row); }
+ if (total != 16) error 2501;
+ if (#grid != 2) error 2502;
+ if (rowlen(&grid[0]) != 2) error 2503;
+ if (rowlen(&grid[1]) != 1) error 2504;
+ return 0;
+}

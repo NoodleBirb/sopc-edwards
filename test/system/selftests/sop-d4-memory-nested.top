@@ -1,0 +1,11 @@
+// T36: R46, R58, R61, R66, R68
+read(p) { return **p; }
+sumrow(p) { var e, n; n = 0; for (e : p) { n = n + read(e); } return n; }
+main() {
+ var grid, row, total;
+ grid = [[alloc 1, alloc 2], [alloc 3]]; total = 0;
+ for (row : &grid) { total = total + sumrow(row); }
+ if (total != 6) error 3601;
+ if (#grid != 2) error 3602;
+ return 0;
+}

@@ -1,0 +1,10 @@
+// T31: R51, R54, R55
+choose(p) { *p = *p * 10 + 1; return (a, b) => a - b; }
+mark(p, digit, value) { *p = *p * 10 + digit; return value; }
+main() {
+ var trace, value; trace = 0;
+ value = choose(&trace)(mark(&trace, 2, 9), mark(&trace, 3, 4));
+ if (trace != 123) error 3101;
+ if (value != 5) error 3102;
+ return 0;
+}

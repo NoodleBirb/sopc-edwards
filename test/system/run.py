@@ -781,6 +781,8 @@ def run_driver_tests(scratch: Path) -> List[TestResult]:
 # ---------------------------------------------------------------------------
 
 def write_junit(results: List[TestResult], path: Path) -> None:
+    from sop_d4 import xml_safe_text
+
     failures = [r for r in results if not r.passed]
     suite = ET.Element("testsuite",
                        name="topc-system-tests",
@@ -791,8 +793,9 @@ def write_junit(results: List[TestResult], path: Path) -> None:
         tc = ET.SubElement(suite, "testcase",
                            name=r.name, time=f"{r.duration:.3f}")
         if not r.passed:
+            message = xml_safe_text(r.message)
             ET.SubElement(tc, "failure",
-                          message=r.message[:200]).text = r.message
+                          message=message[:200]).text = message
     ET.ElementTree(suite).write(str(path), encoding="unicode",
                                 xml_declaration=True)
 
@@ -868,6 +871,8 @@ def main() -> int:
     parser.add_argument("--soundness", action="store_true",
                         help="run only the ownership soundness grid "
                              "(test/system/soundness; not part of the default run)")
+    parser.add_argument("--exclude-sop-d4", action="store_true",
+                        help="run the pre-D4 regression suite without new SOP fixtures")
     args = parser.parse_args()
 
     if not TOPCLANG:
@@ -887,6 +892,8 @@ def main() -> int:
         # ── Selftests (parallelisable) ─────────────────────────────────────
         tasks = []
         for src in sorted(SELFTESTS_DIR.glob("*.top")):
+            if args.exclude_sop_d4 and src.name.startswith("sop-d4-"):
+                continue
             d_normal = scratch_root / f"{src.stem}_normal"; d_normal.mkdir()
             d_do     = scratch_root / f"{src.stem}_do";     d_do.mkdir()
             tasks.append((src, d_normal, []))
@@ -897,6 +904,19 @@ def main() -> int:
                     for s, d, f in tasks}
             for fut in concurrent.futures.as_completed(futs):
                 _record(fut.result(), all_results, args.verbose)
+
+        # D4 runtime failures must compile/link, then fail at execution time.
+        # These do not use the *error.top compile-rejection convention.
+        if not args.exclude_sop_d4:
+            from sop_d4 import Settings, program_cases, run_case
+            settings = Settings(TOPC.resolve(), TOPCLANG, RTLIB / "top_rtlib.bc")
+            with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
+                futures = [pool.submit(run_case, case, mode, settings, scratch_root)
+                           for case in program_cases("runtime")
+                           for mode in ("optimized", "unoptimized")]
+                for future in concurrent.futures.as_completed(futures):
+                    for result in future.result():
+                        _record(result, all_results, args.verbose)
 
         # ── IO tests ──────────────────────────────────────────────────────
         for expected in sorted(IOTESTS_DIR.glob("*.expected")):

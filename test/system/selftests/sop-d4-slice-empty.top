@@ -1,0 +1,12 @@
+// T14: R7, R10, R18, R19, R20
+main() {
+ var s, first, middle, last, whole;
+ s = [1, 2, 3];
+ first = s[0:0]; middle = s[1:1]; last = s[3:3]; whole = first[:];
+ if (#first != 0) error 1401;
+ if (#middle != 0) error 1402;
+ if (#last != 0) error 1403;
+ if (#whole != 0) error 1404;
+ if (#s != 3) error 1405;
+ return 0;
+}

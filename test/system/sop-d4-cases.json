@@ -1,0 +1,739 @@
+{
+  "common_program_requirements": [
+    69,
+    71,
+    72
+  ],
+  "common_memory_requirements": [
+    73,
+    74,
+    75
+  ],
+  "cases": [
+    {
+      "id": "T1",
+      "source": "selftests/sop-d4-literal-values.top",
+      "kind": "functional",
+      "requirements": [
+        3,
+        7,
+        9
+      ],
+      "description": "literal-values"
+    },
+    {
+      "id": "T2",
+      "source": "selftests/sop-d4-nested-values.top",
+      "kind": "functional",
+      "requirements": [
+        3,
+        6,
+        7,
+        10
+      ],
+      "description": "nested-values"
+    },
+    {
+      "id": "T3",
+      "source": "selftests/sop-d4-empty-length.top",
+      "kind": "functional",
+      "requirements": [
+        7,
+        9,
+        10
+      ],
+      "description": "empty-length"
+    },
+    {
+      "id": "T4",
+      "source": "selftests/sop-d4-literal-evaluation.top",
+      "kind": "functional",
+      "requirements": [
+        3,
+        4
+      ],
+      "description": "literal-evaluation"
+    },
+    {
+      "id": "T5",
+      "source": "selftests/sop-d4-length-evaluation.top",
+      "kind": "functional",
+      "requirements": [
+        7,
+        8,
+        63
+      ],
+      "description": "length-evaluation"
+    },
+    {
+      "id": "T6",
+      "source": "selftests/sop-d4-literal-independence.top",
+      "kind": "functional",
+      "requirements": [
+        5
+      ],
+      "description": "literal-independence"
+    },
+    {
+      "id": "T7",
+      "source": "selftests/sop-d4-index-values.top",
+      "kind": "functional",
+      "requirements": [
+        12,
+        13,
+        17
+      ],
+      "description": "index-values"
+    },
+    {
+      "id": "T8",
+      "source": "runtime/sop-d4-index-bounds.top",
+      "kind": "runtime",
+      "requirements": [
+        1,
+        2,
+        12
+      ],
+      "description": "index-bounds",
+      "runs": [
+        [
+          "-1"
+        ],
+        [
+          "3"
+        ],
+        [
+          "5"
+        ],
+        [
+          "-9223372036854775808"
+        ],
+        [
+          "9223372036854775807"
+        ]
+      ],
+      "category": "OutOfBounds",
+      "before": [
+        111
+      ]
+    },
+    {
+      "id": "T9",
+      "source": "runtime/sop-d4-empty-index.top",
+      "kind": "runtime",
+      "requirements": [
+        1,
+        2,
+        12,
+        14
+      ],
+      "description": "empty-index",
+      "runs": [
+        [
+          "-1"
+        ],
+        [
+          "0"
+        ],
+        [
+          "1"
+        ]
+      ],
+      "category": "OutOfBounds",
+      "before": [
+        111,
+        222
+      ]
+    },
+    {
+      "id": "T10",
+      "source": "selftests/sop-d4-index-evaluation.top",
+      "kind": "functional",
+      "requirements": [
+        14,
+        64
+      ],
+      "description": "index-evaluation"
+    },
+    {
+      "id": "T11",
+      "source": "selftests/sop-d4-index-borrow-int.top",
+      "kind": "functional",
+      "requirements": [
+        16,
+        17
+      ],
+      "description": "index-borrow-int"
+    },
+    {
+      "id": "T12",
+      "source": "selftests/sop-d4-index-borrow-own.top",
+      "kind": "functional",
+      "requirements": [
+        16,
+        17
+      ],
+      "description": "index-borrow-own"
+    },
+    {
+      "id": "T13",
+      "source": "selftests/sop-d4-slice-values.top",
+      "kind": "functional",
+      "requirements": [
+        18,
+        19,
+        20,
+        24,
+        25
+      ],
+      "description": "slice-values"
+    },
+    {
+      "id": "T14",
+      "source": "selftests/sop-d4-slice-empty.top",
+      "kind": "functional",
+      "requirements": [
+        7,
+        10,
+        18,
+        19,
+        20
+      ],
+      "description": "slice-empty"
+    },
+    {
+      "id": "T15",
+      "source": "runtime/sop-d4-slice-bounds.top",
+      "kind": "runtime",
+      "requirements": [
+        1,
+        2,
+        20,
+        22
+      ],
+      "description": "slice-bounds",
+      "runs": [
+        [
+          "-1",
+          "2"
+        ],
+        [
+          "0",
+          "4"
+        ],
+        [
+          "2",
+          "1"
+        ],
+        [
+          "-1",
+          "-1"
+        ],
+        [
+          "4",
+          "4"
+        ],
+        [
+          "0",
+          "-1"
+        ],
+        [
+          "-9223372036854775808",
+          "3"
+        ],
+        [
+          "0",
+          "9223372036854775807"
+        ]
+      ],
+      "category": "OutOfBounds",
+      "before": [
+        111
+      ]
+    },
+    {
+      "id": "T16",
+      "source": "selftests/sop-d4-slice-evaluation.top",
+      "kind": "functional",
+      "requirements": [
+        18,
+        21,
+        65
+      ],
+      "description": "slice-evaluation"
+    },
+    {
+      "id": "T17",
+      "source": "selftests/sop-d4-slice-independence.top",
+      "kind": "functional",
+      "requirements": [
+        23,
+        24
+      ],
+      "description": "slice-independence"
+    },
+    {
+      "id": "T18",
+      "source": "runtime/sop-d4-slice-failure-evaluation.top",
+      "kind": "runtime",
+      "requirements": [
+        1,
+        2,
+        20,
+        21,
+        22
+      ],
+      "description": "slice-failure-evaluation",
+      "runs": [
+        [
+          "-1",
+          "2"
+        ],
+        [
+          "2",
+          "1"
+        ],
+        [
+          "0",
+          "4"
+        ]
+      ],
+      "category": "OutOfBounds",
+      "before": [
+        111,
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "T19",
+      "source": "selftests/sop-d4-range-values.top",
+      "kind": "functional",
+      "requirements": [
+        29,
+        31,
+        32,
+        33,
+        34,
+        36
+      ],
+      "description": "range-values"
+    },
+    {
+      "id": "T20",
+      "source": "selftests/sop-d4-range-evaluation.top",
+      "kind": "functional",
+      "requirements": [
+        28,
+        30,
+        34,
+        35,
+        36
+      ],
+      "description": "range-evaluation"
+    },
+    {
+      "id": "T21",
+      "source": "selftests/sop-d4-range-overflow.top",
+      "kind": "functional",
+      "requirements": [
+        38,
+        39
+      ],
+      "description": "range-overflow"
+    },
+    {
+      "id": "T22",
+      "source": "runtime/sop-d4-zero-step.top",
+      "kind": "runtime",
+      "requirements": [
+        1,
+        2,
+        37
+      ],
+      "description": "zero-step",
+      "runs": [
+        [
+          "0",
+          "3",
+          "0"
+        ],
+        [
+          "3",
+          "3",
+          "0"
+        ],
+        [
+          "5",
+          "0",
+          "0"
+        ],
+        [
+          "0",
+          "5",
+          "0"
+        ]
+      ],
+      "category": "ZeroStep",
+      "before": [
+        111
+      ]
+    },
+    {
+      "id": "T23",
+      "source": "selftests/sop-d4-borrowed-copy.top",
+      "kind": "functional",
+      "requirements": [
+        41,
+        42,
+        44,
+        45,
+        47,
+        48
+      ],
+      "description": "borrowed-copy"
+    },
+    {
+      "id": "T24",
+      "source": "selftests/sop-d4-borrowed-parameter.top",
+      "kind": "functional",
+      "requirements": [
+        41,
+        42,
+        43,
+        47,
+        48
+      ],
+      "description": "borrowed-parameter"
+    },
+    {
+      "id": "T25",
+      "source": "selftests/sop-d4-borrowed-nested.top",
+      "kind": "functional",
+      "requirements": [
+        42,
+        46,
+        47,
+        48
+      ],
+      "description": "borrowed-nested"
+    },
+    {
+      "id": "T26",
+      "source": "selftests/sop-d4-borrowed-evaluation.top",
+      "kind": "functional",
+      "requirements": [
+        40,
+        42
+      ],
+      "description": "borrowed-evaluation"
+    },
+    {
+      "id": "T27",
+      "source": "selftests/sop-d4-borrowed-own.top",
+      "kind": "functional",
+      "requirements": [
+        42,
+        46,
+        47,
+        48
+      ],
+      "description": "borrowed-own"
+    },
+    {
+      "id": "T28",
+      "source": "selftests/sop-d4-borrowed-empty.top",
+      "kind": "functional",
+      "requirements": [
+        40,
+        43,
+        48
+      ],
+      "description": "borrowed-empty"
+    },
+    {
+      "id": "T29",
+      "source": "selftests/sop-d4-lambda-forms.top",
+      "kind": "functional",
+      "requirements": [
+        49,
+        50,
+        51,
+        52,
+        53,
+        54
+      ],
+      "description": "lambda-forms"
+    },
+    {
+      "id": "T30",
+      "source": "selftests/sop-d4-higher-order.top",
+      "kind": "functional",
+      "requirements": [
+        54,
+        56,
+        57
+      ],
+      "description": "higher-order"
+    },
+    {
+      "id": "T31",
+      "source": "selftests/sop-d4-call-evaluation.top",
+      "kind": "functional",
+      "requirements": [
+        51,
+        54,
+        55
+      ],
+      "description": "call-evaluation"
+    },
+    {
+      "id": "T32",
+      "source": "selftests/sop-d4-lambda-consume.top",
+      "kind": "functional",
+      "requirements": [
+        56,
+        58,
+        59,
+        60,
+        68
+      ],
+      "description": "lambda-consume"
+    },
+    {
+      "id": "T33",
+      "source": "selftests/sop-d4-lambda-transfer.top",
+      "kind": "functional",
+      "requirements": [
+        56,
+        58,
+        59,
+        60,
+        68
+      ],
+      "description": "lambda-transfer"
+    },
+    {
+      "id": "T34",
+      "source": "selftests/sop-d4-memory-returned.top",
+      "kind": "memory",
+      "requirements": [
+        58,
+        59,
+        60,
+        66,
+        68
+      ],
+      "description": "memory-returned",
+      "lifecycle": "returned"
+    },
+    {
+      "id": "T35",
+      "source": "selftests/sop-d4-memory-moved.top",
+      "kind": "memory",
+      "requirements": [
+        58,
+        59,
+        60,
+        66,
+        68
+      ],
+      "description": "memory-moved",
+      "lifecycle": "moved"
+    },
+    {
+      "id": "T36",
+      "source": "selftests/sop-d4-memory-nested.top",
+      "kind": "memory",
+      "requirements": [
+        46,
+        58,
+        61,
+        66,
+        68
+      ],
+      "description": "memory-nested",
+      "lifecycle": "nested"
+    },
+    {
+      "id": "T37",
+      "source": "selftests/sop-d4-memory-sliced.top",
+      "kind": "memory",
+      "requirements": [
+        23,
+        24,
+        58,
+        62,
+        66,
+        68
+      ],
+      "description": "memory-sliced",
+      "lifecycle": "sliced"
+    },
+    {
+      "id": "T38",
+      "source": "selftests/sop-d4-memory-unnamed.top",
+      "kind": "memory",
+      "requirements": [
+        58,
+        63,
+        64,
+        65,
+        68
+      ],
+      "description": "memory-unnamed",
+      "lifecycle": "unnamed"
+    },
+    {
+      "id": "T39",
+      "source": "selftests/sop-d4-memory-owned-elements.top",
+      "kind": "memory",
+      "requirements": [
+        58,
+        59,
+        60,
+        61,
+        66,
+        68
+      ],
+      "description": "memory-owned-elements",
+      "lifecycle": "owning elements"
+    },
+    {
+      "id": "T40",
+      "source": "selftests/sop-d4-memory-sum-elements.top",
+      "kind": "memory",
+      "requirements": [
+        46,
+        58,
+        61,
+        66,
+        68
+      ],
+      "description": "memory-sum-elements",
+      "lifecycle": "owning algebraic elements"
+    },
+    {
+      "id": "T41",
+      "description": "IR allocation and layout",
+      "requirements": [
+        10,
+        11,
+        70,
+        80
+      ],
+      "kind": "ir",
+      "artifact": "test/unit/codegen/SOPD4CodegenTest.cpp"
+    },
+    {
+      "id": "T42",
+      "description": "IR length read",
+      "requirements": [
+        7,
+        70,
+        80
+      ],
+      "kind": "ir",
+      "artifact": "test/unit/codegen/SOPD4CodegenTest.cpp"
+    },
+    {
+      "id": "T43",
+      "description": "IR guarded element access",
+      "requirements": [
+        12,
+        15,
+        70,
+        80
+      ],
+      "kind": "ir",
+      "artifact": "test/unit/codegen/SOPD4CodegenTest.cpp"
+    },
+    {
+      "id": "T44",
+      "description": "IR loop control flow",
+      "requirements": [
+        31,
+        32,
+        33,
+        70,
+        80
+      ],
+      "kind": "ir",
+      "artifact": "test/unit/codegen/SOPD4CodegenTest.cpp"
+    },
+    {
+      "id": "T45",
+      "description": "IR release after return evaluation",
+      "requirements": [
+        66,
+        67,
+        68,
+        70,
+        80
+      ],
+      "kind": "ir",
+      "artifact": "test/unit/codegen/SOPD4CodegenTest.cpp"
+    },
+    {
+      "id": "T46",
+      "description": "IR lambda registration and function-value call",
+      "requirements": [
+        49,
+        50,
+        51,
+        52,
+        54,
+        70,
+        80
+      ],
+      "kind": "ir",
+      "artifact": "test/unit/codegen/SOPD4CodegenTest.cpp"
+    },
+    {
+      "id": "T47",
+      "description": "IR sanitizer instrumentation",
+      "requirements": [
+        70,
+        73
+      ],
+      "kind": "ir",
+      "artifact": "test/unit/codegen/SOPD4CodegenTest.cpp"
+    },
+    {
+      "id": "T48",
+      "description": "IR dynamic slice copying",
+      "requirements": [
+        18,
+        26,
+        27,
+        70,
+        80
+      ],
+      "kind": "ir",
+      "artifact": "test/unit/codegen/SOPD4CodegenTest.cpp"
+    },
+    {
+      "id": "T49",
+      "description": "Runtime-test oracle checks",
+      "requirements": [
+        1,
+        2
+      ],
+      "kind": "infrastructure",
+      "artifact": "test/system/test_sop_d4_runner.py"
+    },
+    {
+      "id": "T50",
+      "description": "Existing TOP and D3 regression suites",
+      "requirements": [
+        76,
+        77,
+        78,
+        79
+      ],
+      "kind": "regression",
+      "artifact": "test/system/run.py"
+    }
+  ]
+}

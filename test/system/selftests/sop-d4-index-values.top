@@ -1,0 +1,10 @@
+// T7: R12, R13, R17
+main() {
+ var s;
+ s = [10, 20, 30];
+ if (s[0] != 10) error 701;
+ if (s[1] != 20) error 702;
+ if (s[2] != 30) error 703;
+ if (#s != 3) error 704;
+ return 0;
+}

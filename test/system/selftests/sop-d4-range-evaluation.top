@@ -1,0 +1,16 @@
+// T20: R28, R30, R34, R35, R36
+mark(p, digit, value) { *p = *p * 10 + digit; return value; }
+main() {
+ var i, n, step, count, trace;
+ n = 3; step = 1; count = 0; trace = 0;
+ for (i : mark(&trace, 1, 0) .. mark(&trace, 2, n) by mark(&trace, 3, step)) {
+   i = i + 10;
+   if (i != 10 + count) error 2001;
+   n = n + 1; step = 0; count = count + 1;
+ }
+ if (trace != 123) error 2002;
+ if (count != 3) error 2003;
+ if (n != 6) error 2004;
+ if (i != 12) error 2005;
+ return 0;
+}

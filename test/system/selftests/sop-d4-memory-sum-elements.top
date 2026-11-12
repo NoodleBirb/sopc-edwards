@@ -1,0 +1,13 @@
+// T40: R46, R58, R61, R66, R68
+type Box = Full(value);
+inspect(p) {
+ var result;
+ case *p of { Full(x) -> result = *x; }
+ return result;
+}
+main() {
+ var s, e, total; s = [Full(alloc 7), Full(alloc 9)]; total = 0;
+ for (e : &s) { total = total + inspect(e); }
+ if (total != 16) error 4001;
+ return 0;
+}

@@ -1,0 +1,11 @@
+// T33: R56, R58, R59, R60, R68
+apply(f, v) { return f(v); }
+read(p) { return **p; }
+main() {
+ var s, t; s = [alloc 7, alloc 9];
+ t = apply((q) => q, s);
+ if (#t != 2) error 3301;
+ if (read(&t[0]) != 7) error 3302;
+ if (read(&t[1]) != 9) error 3303;
+ return 0;
+}

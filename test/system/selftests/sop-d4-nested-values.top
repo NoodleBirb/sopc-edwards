@@ -1,0 +1,18 @@
+// T2: R3, R6, R7, R10
+rowlen(p) { return #*p; }
+cell(p, i) { return (*p)[i]; }
+main() {
+ var s, emptyrow;
+ s = [[1, 2], [3]];
+ if (#s != 2) error 201;
+ if (rowlen(&s[0]) != 2) error 202;
+ if (rowlen(&s[1]) != 1) error 203;
+ if (cell(&s[0], 0) != 1) error 204;
+ if (cell(&s[0], 1) != 2) error 205;
+ if (cell(&s[1], 0) != 3) error 206;
+ emptyrow = [[], [1]];
+ if (#emptyrow != 2) error 207;
+ if (rowlen(&emptyrow[0]) != 0) error 208;
+ if (cell(&emptyrow[1], 0) != 1) error 209;
+ return 0;
+}

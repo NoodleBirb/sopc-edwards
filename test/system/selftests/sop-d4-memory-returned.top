@@ -1,0 +1,8 @@
+// T34: R58, R59, R60, R66, R68
+make() { return [1, 2, 3]; }
+main() {
+ var s; s = make();
+ if (#s != 3) error 3401;
+ if (s[2] != 3) error 3402;
+ return 0;
+}

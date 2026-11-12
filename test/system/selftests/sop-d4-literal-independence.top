@@ -1,0 +1,15 @@
+// T6: R5
+make() { return [10, 20, 30]; }
+set(p, value) { *p = value; return 0; }
+main() {
+ var first, second, ignored;
+ first = make(); second = make();
+ ignored = set(&first[0], 99);
+ if (first[0] != 99) error 601;
+ if (first[1] != 20) error 602;
+ if (first[2] != 30) error 603;
+ if (second[0] != 10) error 604;
+ if (second[1] != 20) error 605;
+ if (second[2] != 30) error 606;
+ return 0;
+}

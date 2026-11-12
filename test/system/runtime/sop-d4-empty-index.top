@@ -1,0 +1,10 @@
+// T9: R1, R2, R12, R14
+index(i) { output 222; return i; }
+main(i) {
+ var s, empty;
+ s = [1]; empty = s[0:0];
+ output 111;
+ output empty[index(i)];
+ output 999;
+ return 0;
+}

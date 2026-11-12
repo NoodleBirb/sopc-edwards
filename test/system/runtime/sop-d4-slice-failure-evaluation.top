@@ -1,0 +1,10 @@
+// T18: R1, R2, R20, R21, R22
+source() { output 1; return [1, 2, 3]; }
+bound(marker, value) { output marker; return value; }
+main(lo, hi) {
+ var s;
+ output 111;
+ s = source()[bound(2, lo):bound(3, hi)];
+ output 999;
+ return #s;
+}

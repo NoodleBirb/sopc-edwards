@@ -188,3 +188,230 @@ denotes sequence length. Runtime errors follow the rules below.
 **R79.** New syntax, types, ownership features, closure capture, owned-element cloning, and language-level exceptions are out of scope.
 
 **R80.** Diagnostic wording beyond required categories, generated names, instruction shapes, allocator choice, and helper organization shall remain implementation-defined.
+
+## Test Plan
+
+Tests below are implemented; execution status is recorded in SOLUTION-D4.md.
+All helpers are defined within their tests. Program paths are relative to
+`test/system/`. Cases and coverage are also recorded in
+[sop-d4-cases.json](test/system/sop-d4-cases.json).
+
+Self-checks use `error` on assertion failure and finish with `Program output: 0`.
+Program tests run with optimization enabled and disabled. The memory runner
+repeats every successful program under ASan with leak detection enabled.
+
+Runtime-failure tests must compile and link successfully, then exit nonzero with
+the required category. Their complete pre-failure output must match the manifest;
+post-failure output, crashes, or sanitizer reports fail the test. Runtime failures
+run separately from leak checks because fatal-error unwinding is not a required
+memory-lifecycle case.
+
+### Sequence Literals and Length
+
+| Test | Program or test artifact | Assertions | Primary requirements |
+| --- | --- | --- | --- |
+| T1 | [selftests/sop-d4-literal-values.top](test/system/selftests/sop-d4-literal-values.top) | Check length `3`, values `[10,20,30]`, and continued source use after length reads. | R3, R7, R9 |
+| T2 | [selftests/sop-d4-nested-values.top](test/system/selftests/sop-d4-nested-values.top) | Check ragged row lengths and values; include a contextually typed empty literal in `[[],[1]]`. | R3, R6, R7, R10 |
+| T3 | [selftests/sop-d4-empty-length.top](test/system/selftests/sop-d4-empty-length.top) | Check that an empty slice has length `0` and leaves its source unchanged. | R7, R9, R10 |
+| T4 | [selftests/sop-d4-literal-evaluation.top](test/system/selftests/sop-d4-literal-evaluation.top) | Check evaluation prefixes `0,1,12`, final trace `123`, and resulting values `[1,2,3]`. | R3, R4 |
+| T5 | [selftests/sop-d4-length-evaluation.top](test/system/selftests/sop-d4-length-evaluation.top) | A length operand increments a counter and returns a sequence; require one call and length `3`. | R7, R8, R63 |
+| T6 | [selftests/sop-d4-literal-independence.top](test/system/selftests/sop-d4-literal-independence.top) | Evaluate the same literal twice; mutate the first and check both complete resulting sequences. | R5 |
+
+### Sequence Indexing
+
+| Test | Program or test artifact | Assertions | Primary requirements |
+| --- | --- | --- | --- |
+| T7 | [selftests/sop-d4-index-values.top](test/system/selftests/sop-d4-index-values.top) | Check all valid indices of `[10,20,30]`, including first/last, and retain source ownership. | R12, R13, R17 |
+| T8 | [runtime/sop-d4-index-bounds.top](test/system/runtime/sop-d4-index-bounds.top) | Reject `-1`, `3`, `5`, and signed integer extremes for length `3`. | R1, R2, R12 |
+| T9 | [runtime/sop-d4-empty-index.top](test/system/runtime/sop-d4-empty-index.top) | Reject every tested index of an empty sequence; still evaluate the index expression before failure. | R1, R2, R12, R14 |
+| T10 | [selftests/sop-d4-index-evaluation.top](test/system/selftests/sop-d4-index-evaluation.top) | Require sequence/index trace `12`, once each, and selected value `20`. | R14, R64 |
+| T11 | [selftests/sop-d4-index-borrow-int.top](test/system/selftests/sop-d4-index-borrow-int.top) | Mutate integer index `1` through `*p`; require `[10,99,30]` and unchanged length. | R16, R17 |
+| T12 | [selftests/sop-d4-index-borrow-own.top](test/system/selftests/sop-d4-index-borrow-own.top) | Mutate an owned box through `**p`; require values `10,99` and continued source use. | R16, R17 |
+
+### Sequence Slicing
+
+| Test | Program or test artifact | Assertions | Primary requirements |
+| --- | --- | --- | --- |
+| T13 | [selftests/sop-d4-slice-values.top](test/system/selftests/sop-d4-slice-values.top) | Check explicit, omitted, and full slice bounds, result lengths, contents, and source preservation. | R18, R19, R20, R24, R25 |
+| T14 | [selftests/sop-d4-slice-empty.top](test/system/selftests/sop-d4-slice-empty.top) | Check empty slices at start, middle, and end; copy an empty sequence. | R7, R10, R18, R19, R20 |
+| T15 | [runtime/sop-d4-slice-bounds.top](test/system/runtime/sop-d4-slice-bounds.top) | Reject negative, reversed, excessive, degenerate-invalid, and extreme bounds. | R1, R2, R20, R22 |
+| T16 | [selftests/sop-d4-slice-evaluation.top](test/system/selftests/sop-d4-slice-evaluation.top) | Require source/lower/upper trace `123`, once each, with result `[2,3]`. | R18, R21, R65 |
+| T17 | [selftests/sop-d4-slice-independence.top](test/system/selftests/sop-d4-slice-independence.top) | Mutate source and slice separately; confirm isolation in both directions. | R23, R24 |
+| T18 | [runtime/sop-d4-slice-failure-evaluation.top](test/system/runtime/sop-d4-slice-failure-evaluation.top) | Even invalid numeric bounds must evaluate all three operands before the bounds failure. | R1, R2, R20, R21, R22 |
+
+### Range Loops
+
+| Test | Program or test artifact | Assertions | Primary requirements |
+| --- | --- | --- | --- |
+| T19 | [selftests/sop-d4-range-values.top](test/system/selftests/sop-d4-range-values.top) | Check both directions, default step, exclusive end, equal endpoints, direction mismatch, and final binder. | R29, R31, R32, R33, R34, R36 |
+| T20 | [selftests/sop-d4-range-evaluation.top](test/system/selftests/sop-d4-range-evaluation.top) | Check once-only range operands, saved bounds/step, and body binder changes independent of progression. | R28, R30, R34, R35, R36 |
+| T21 | [selftests/sop-d4-range-overflow.top](test/system/selftests/sop-d4-range-overflow.top) | Check overflow in both directions, extreme steps, final binder, and continuation after the loop. | R38, R39 |
+| T22 | [runtime/sop-d4-zero-step.top](test/system/runtime/sop-d4-zero-step.top) | Reject zero steps for nonempty, equal, and direction-mismatched endpoints before any body output. | R1, R2, R37 |
+
+### Borrowed Sequence Iteration
+
+| Test | Program or test artifact | Assertions | Primary requirements |
+| --- | --- | --- | --- |
+| T23 | [selftests/sop-d4-borrowed-copy.top](test/system/selftests/sop-d4-borrowed-copy.top) | Check visit order/count and that modifying a Copy binder does not write back. | R41, R42, R44, R45, R47, R48 |
+| T24 | [selftests/sop-d4-borrowed-parameter.top](test/system/selftests/sop-d4-borrowed-parameter.top) | Iterate through borrowed parameters over nonempty and empty sequences without consuming them. | R41, R42, R43, R47, R48 |
+| T25 | [selftests/sop-d4-borrowed-nested.top](test/system/selftests/sop-d4-borrowed-nested.top) | Visit nested rows through `borrow&T` binders and retain the outer owner. | R42, R46, R47, R48 |
+| T26 | [selftests/sop-d4-borrowed-evaluation.top](test/system/selftests/sop-d4-borrowed-evaluation.top) | An indexed iterable increments a counter; require one evaluation and trace `123`. | R40, R42 |
+| T27 | [selftests/sop-d4-borrowed-own.top](test/system/selftests/sop-d4-borrowed-own.top) | Read/mutate owned boxes through borrowed binders; retain the sequence and its elements. | R42, R46, R47, R48 |
+| T28 | [selftests/sop-d4-borrowed-empty.top](test/system/selftests/sop-d4-borrowed-empty.top) | An empty borrowed loop preserves the prior Copy binder and executes no body. | R40, R43, R48 |
+
+### Lambdas and Function Calls
+
+| Test | Program or test artifact | Assertions | Primary requirements |
+| --- | --- | --- | --- |
+| T29 | [selftests/sop-d4-lambda-forms.top](test/system/selftests/sop-d4-lambda-forms.top) | Check immediate, stored, passed, returned, and sequence-selected lambdas; defer body effects until a call. | R49, R50, R51, R52, R53, R54 |
+| T30 | [selftests/sop-d4-higher-order.top](test/system/selftests/sop-d4-higher-order.top) | Call one source-defined higher-order loop with addition and multiplication lambdas. | R54, R56, R57 |
+| T31 | [selftests/sop-d4-call-evaluation.top](test/system/selftests/sop-d4-call-evaluation.top) | Require function-expression/argument trace `123`, once each, and correct subtraction result. | R51, R54, R55 |
+| T32 | [selftests/sop-d4-lambda-consume.top](test/system/selftests/sop-d4-lambda-consume.top) | Consume a sequence through a lambda and higher-order forwarding call without double cleanup. | R56, R58, R59, R60, R68 |
+| T33 | [selftests/sop-d4-lambda-transfer.top](test/system/selftests/sop-d4-lambda-transfer.top) | Return owned elements through a lambda and forwarding call; clean up only the receiving owner. | R56, R58, R59, R60, R68 |
+
+### Memory Lifecycles
+
+| Test | Program or test artifact | Assertions | Primary requirements |
+| --- | --- | --- | --- |
+| T34 | [selftests/sop-d4-memory-returned.top](test/system/selftests/sop-d4-memory-returned.top) | Return a sequence into a caller-owned binding and release it there. | R58, R59, R60, R66, R68 |
+| T35 | [selftests/sop-d4-memory-moved.top](test/system/selftests/sop-d4-memory-moved.top) | Move a sequence between bindings and release only the final owner. | R58, R59, R60, R66, R68 |
+| T36 | [selftests/sop-d4-memory-nested.top](test/system/selftests/sop-d4-memory-nested.top) | Recursively destroy a nested sequence of owned boxes. | R46, R58, R61, R66, R68 |
+| T37 | [selftests/sop-d4-memory-sliced.top](test/system/selftests/sop-d4-memory-sliced.top) | Destroy source and copied slice independently; Copy elements require no destruction. | R23, R24, R58, R62, R66, R68 |
+| T38 | [selftests/sop-d4-memory-unnamed.top](test/system/selftests/sop-d4-memory-unnamed.top) | Exercise unnamed length/index/slice values, a temporary slice source, and temporary borrowed-call lifetime. | R58, R63, R64, R65, R68 |
+| T39 | [selftests/sop-d4-memory-owned-elements.top](test/system/selftests/sop-d4-memory-owned-elements.top) | Destroy owned boxes moved into sequence elements exactly once. | R58, R59, R60, R61, R66, R68 |
+| T40 | [selftests/sop-d4-memory-sum-elements.top](test/system/selftests/sop-d4-memory-sum-elements.top) | Destroy sequence elements that are algebraic values containing owned boxes. | R46, R58, R61, R66, R68 |
+
+### IR and Test Infrastructure
+
+| Test | Program or test artifact | Assertions | Primary requirements |
+| --- | --- | --- | --- |
+| T41 | [SOPD4CodegenTest.cpp T41](test/unit/codegen/SOPD4CodegenTest.cpp) | Inspect allocation size/header contract, including a contextually typed empty literal. | R10, R11, R70, R80 |
+| T42 | [SOPD4CodegenTest.cpp T42](test/unit/codegen/SOPD4CodegenTest.cpp) | Inspect the header read contributing to a length result. | R7, R70, R80 |
+| T43 | [SOPD4CodegenTest.cpp T43](test/unit/codegen/SOPD4CodegenTest.cpp) | Require a success guard to dominate dynamic element access and an error path that cannot reach it. | R12, R15, R70, R80 |
+| T44 | [SOPD4CodegenTest.cpp T44](test/unit/codegen/SOPD4CodegenTest.cpp) | Find a loop back edge in generated range control flow. | R31, R32, R33, R70, R80 |
+| T45 | [SOPD4CodegenTest.cpp T45](test/unit/codegen/SOPD4CodegenTest.cpp) | Require return-value computation before cleanup and cleanup before return. | R66, R67, R68, R70, R80 |
+| T46 | [SOPD4CodegenTest.cpp T46](test/unit/codegen/SOPD4CodegenTest.cpp) | Find the emitted lambda/table entry and indirect call; require no function-environment allocation. | R49, R50, R51, R52, R54, R70, R80 |
+| T47 | [SOPD4CodegenTest.cpp T47](test/unit/codegen/SOPD4CodegenTest.cpp) | Check ASan read/write instrumentation with optimization enabled and disabled. | R70, R73 |
+| T48 | [SOPD4CodegenTest.cpp T48](test/unit/codegen/SOPD4CodegenTest.cpp) | Find dynamic slice copying and allocation linear in `hi - lo`. | R18, R26, R27, R70, R80 |
+| T49 | [test/system/test_sop_d4_runner.py](test/system/test_sop_d4_runner.py) | Reject compiler/link failures, crashes, missing categories/effects, later output, and sanitizer reports as false positives. | R1, R2 |
+| T50 | [test/system/run.py](test/system/run.py) | Run existing TOP/D3 suites unchanged and review scope/non-goal preservation. | R76, R77, R78, R79 |
+
+### Memory-Safety Matrix
+
+Release points are required behavior; sanitizer results remain separate evidence.
+
+| Lifecycle | Test | Required release point |
+| --- | --- | --- |
+| Returned | [T34](test/system/selftests/sop-d4-memory-returned.top) | Receiver's exit, after evaluating its return value; no release in the returning producer. |
+| Moved | [T35](test/system/selftests/sop-d4-memory-moved.top) | Final owner's exit; no release by the moved-from binding. |
+| Nested | [T36](test/system/selftests/sop-d4-memory-nested.top) | Destroy owned boxes, then rows, then outer storage. |
+| Copied by a slice | [T37](test/system/selftests/sop-d4-memory-sliced.top) | Source and slice each release their own storage at their planned endpoints. |
+| Never named | [T38](test/system/selftests/sop-d4-memory-unnamed.top) | After length/Copy-element reads, after slice copying, or after the receiving borrowed call. |
+| Owning its elements | [T39](test/system/selftests/sop-d4-memory-owned-elements.top), [T40](test/system/selftests/sop-d4-memory-sum-elements.top) | Recursively destroy owned boxes/algebraic payloads before sequence storage. |
+
+### Requirement Traceability
+
+“All programs” means T1–T40, including both optimization modes. “Memory runner”
+means all successful T1–T40 cases under sanitizers; it excludes T8, T9, T15, T18,
+and T22. Scope and non-goals also require review alongside the unchanged D3
+regressions; an execution test alone does not prove the absence of new features.
+
+| Requirement | Tests |
+| --- | --- |
+| R1 | [T8](test/system/runtime/sop-d4-index-bounds.top), [T9](test/system/runtime/sop-d4-empty-index.top), [T15](test/system/runtime/sop-d4-slice-bounds.top), [T18](test/system/runtime/sop-d4-slice-failure-evaluation.top), [T22](test/system/runtime/sop-d4-zero-step.top), [T49](test/system/test_sop_d4_runner.py) |
+| R2 | [T8](test/system/runtime/sop-d4-index-bounds.top), [T9](test/system/runtime/sop-d4-empty-index.top), [T15](test/system/runtime/sop-d4-slice-bounds.top), [T18](test/system/runtime/sop-d4-slice-failure-evaluation.top), [T22](test/system/runtime/sop-d4-zero-step.top), [T49](test/system/test_sop_d4_runner.py) |
+| R3 | [T1](test/system/selftests/sop-d4-literal-values.top), [T2](test/system/selftests/sop-d4-nested-values.top), [T4](test/system/selftests/sop-d4-literal-evaluation.top) |
+| R4 | [T4](test/system/selftests/sop-d4-literal-evaluation.top) |
+| R5 | [T6](test/system/selftests/sop-d4-literal-independence.top) |
+| R6 | [T2](test/system/selftests/sop-d4-nested-values.top) |
+| R7 | [T1](test/system/selftests/sop-d4-literal-values.top), [T2](test/system/selftests/sop-d4-nested-values.top), [T3](test/system/selftests/sop-d4-empty-length.top), [T5](test/system/selftests/sop-d4-length-evaluation.top), [T14](test/system/selftests/sop-d4-slice-empty.top), [T42](test/unit/codegen/SOPD4CodegenTest.cpp) |
+| R8 | [T5](test/system/selftests/sop-d4-length-evaluation.top) |
+| R9 | [T1](test/system/selftests/sop-d4-literal-values.top), [T3](test/system/selftests/sop-d4-empty-length.top) |
+| R10 | [T2](test/system/selftests/sop-d4-nested-values.top), [T3](test/system/selftests/sop-d4-empty-length.top), [T14](test/system/selftests/sop-d4-slice-empty.top), [T41](test/unit/codegen/SOPD4CodegenTest.cpp) |
+| R11 | [T41](test/unit/codegen/SOPD4CodegenTest.cpp) |
+| R12 | [T7](test/system/selftests/sop-d4-index-values.top), [T8](test/system/runtime/sop-d4-index-bounds.top), [T9](test/system/runtime/sop-d4-empty-index.top), [T43](test/unit/codegen/SOPD4CodegenTest.cpp) |
+| R13 | [T7](test/system/selftests/sop-d4-index-values.top) |
+| R14 | [T9](test/system/runtime/sop-d4-empty-index.top), [T10](test/system/selftests/sop-d4-index-evaluation.top) |
+| R15 | [T43](test/unit/codegen/SOPD4CodegenTest.cpp) |
+| R16 | [T11](test/system/selftests/sop-d4-index-borrow-int.top), [T12](test/system/selftests/sop-d4-index-borrow-own.top) |
+| R17 | [T7](test/system/selftests/sop-d4-index-values.top), [T11](test/system/selftests/sop-d4-index-borrow-int.top), [T12](test/system/selftests/sop-d4-index-borrow-own.top) |
+| R18 | [T13](test/system/selftests/sop-d4-slice-values.top), [T14](test/system/selftests/sop-d4-slice-empty.top), [T16](test/system/selftests/sop-d4-slice-evaluation.top), [T48](test/unit/codegen/SOPD4CodegenTest.cpp) |
+| R19 | [T13](test/system/selftests/sop-d4-slice-values.top), [T14](test/system/selftests/sop-d4-slice-empty.top) |
+| R20 | [T13](test/system/selftests/sop-d4-slice-values.top), [T14](test/system/selftests/sop-d4-slice-empty.top), [T15](test/system/runtime/sop-d4-slice-bounds.top), [T18](test/system/runtime/sop-d4-slice-failure-evaluation.top) |
+| R21 | [T16](test/system/selftests/sop-d4-slice-evaluation.top), [T18](test/system/runtime/sop-d4-slice-failure-evaluation.top) |
+| R22 | [T15](test/system/runtime/sop-d4-slice-bounds.top), [T18](test/system/runtime/sop-d4-slice-failure-evaluation.top) |
+| R23 | [T17](test/system/selftests/sop-d4-slice-independence.top), [T37](test/system/selftests/sop-d4-memory-sliced.top) |
+| R24 | [T13](test/system/selftests/sop-d4-slice-values.top), [T17](test/system/selftests/sop-d4-slice-independence.top), [T37](test/system/selftests/sop-d4-memory-sliced.top) |
+| R25 | [T13](test/system/selftests/sop-d4-slice-values.top) |
+| R26 | [T48](test/unit/codegen/SOPD4CodegenTest.cpp) |
+| R27 | [T48](test/unit/codegen/SOPD4CodegenTest.cpp) |
+| R28 | [T20](test/system/selftests/sop-d4-range-evaluation.top) |
+| R29 | [T19](test/system/selftests/sop-d4-range-values.top) |
+| R30 | [T20](test/system/selftests/sop-d4-range-evaluation.top) |
+| R31 | [T19](test/system/selftests/sop-d4-range-values.top), [T44](test/unit/codegen/SOPD4CodegenTest.cpp) |
+| R32 | [T19](test/system/selftests/sop-d4-range-values.top), [T44](test/unit/codegen/SOPD4CodegenTest.cpp) |
+| R33 | [T19](test/system/selftests/sop-d4-range-values.top), [T44](test/unit/codegen/SOPD4CodegenTest.cpp) |
+| R34 | [T19](test/system/selftests/sop-d4-range-values.top), [T20](test/system/selftests/sop-d4-range-evaluation.top) |
+| R35 | [T20](test/system/selftests/sop-d4-range-evaluation.top) |
+| R36 | [T19](test/system/selftests/sop-d4-range-values.top), [T20](test/system/selftests/sop-d4-range-evaluation.top) |
+| R37 | [T22](test/system/runtime/sop-d4-zero-step.top) |
+| R38 | [T21](test/system/selftests/sop-d4-range-overflow.top) |
+| R39 | [T21](test/system/selftests/sop-d4-range-overflow.top) |
+| R40 | [T26](test/system/selftests/sop-d4-borrowed-evaluation.top), [T28](test/system/selftests/sop-d4-borrowed-empty.top) |
+| R41 | [T23](test/system/selftests/sop-d4-borrowed-copy.top), [T24](test/system/selftests/sop-d4-borrowed-parameter.top) |
+| R42 | [T23](test/system/selftests/sop-d4-borrowed-copy.top), [T24](test/system/selftests/sop-d4-borrowed-parameter.top), [T25](test/system/selftests/sop-d4-borrowed-nested.top), [T26](test/system/selftests/sop-d4-borrowed-evaluation.top), [T27](test/system/selftests/sop-d4-borrowed-own.top) |
+| R43 | [T24](test/system/selftests/sop-d4-borrowed-parameter.top), [T28](test/system/selftests/sop-d4-borrowed-empty.top) |
+| R44 | [T23](test/system/selftests/sop-d4-borrowed-copy.top) |
+| R45 | [T23](test/system/selftests/sop-d4-borrowed-copy.top) |
+| R46 | [T25](test/system/selftests/sop-d4-borrowed-nested.top), [T27](test/system/selftests/sop-d4-borrowed-own.top), [T36](test/system/selftests/sop-d4-memory-nested.top), [T40](test/system/selftests/sop-d4-memory-sum-elements.top) |
+| R47 | [T23](test/system/selftests/sop-d4-borrowed-copy.top), [T24](test/system/selftests/sop-d4-borrowed-parameter.top), [T25](test/system/selftests/sop-d4-borrowed-nested.top), [T27](test/system/selftests/sop-d4-borrowed-own.top) |
+| R48 | [T23](test/system/selftests/sop-d4-borrowed-copy.top), [T24](test/system/selftests/sop-d4-borrowed-parameter.top), [T25](test/system/selftests/sop-d4-borrowed-nested.top), [T27](test/system/selftests/sop-d4-borrowed-own.top), [T28](test/system/selftests/sop-d4-borrowed-empty.top) |
+| R49 | [T29](test/system/selftests/sop-d4-lambda-forms.top), [T46](test/unit/codegen/SOPD4CodegenTest.cpp) |
+| R50 | [T29](test/system/selftests/sop-d4-lambda-forms.top), [T46](test/unit/codegen/SOPD4CodegenTest.cpp) |
+| R51 | [T29](test/system/selftests/sop-d4-lambda-forms.top), [T31](test/system/selftests/sop-d4-call-evaluation.top), [T46](test/unit/codegen/SOPD4CodegenTest.cpp) |
+| R52 | [T29](test/system/selftests/sop-d4-lambda-forms.top), [T46](test/unit/codegen/SOPD4CodegenTest.cpp) |
+| R53 | [T29](test/system/selftests/sop-d4-lambda-forms.top) |
+| R54 | [T29](test/system/selftests/sop-d4-lambda-forms.top), [T30](test/system/selftests/sop-d4-higher-order.top), [T31](test/system/selftests/sop-d4-call-evaluation.top), [T46](test/unit/codegen/SOPD4CodegenTest.cpp) |
+| R55 | [T31](test/system/selftests/sop-d4-call-evaluation.top) |
+| R56 | [T30](test/system/selftests/sop-d4-higher-order.top), [T32](test/system/selftests/sop-d4-lambda-consume.top), [T33](test/system/selftests/sop-d4-lambda-transfer.top) |
+| R57 | [T30](test/system/selftests/sop-d4-higher-order.top) |
+| R58 | [T32](test/system/selftests/sop-d4-lambda-consume.top), [T33](test/system/selftests/sop-d4-lambda-transfer.top), [T34](test/system/selftests/sop-d4-memory-returned.top), [T35](test/system/selftests/sop-d4-memory-moved.top), [T36](test/system/selftests/sop-d4-memory-nested.top), [T37](test/system/selftests/sop-d4-memory-sliced.top), [T38](test/system/selftests/sop-d4-memory-unnamed.top), [T39](test/system/selftests/sop-d4-memory-owned-elements.top), [T40](test/system/selftests/sop-d4-memory-sum-elements.top) |
+| R59 | [T32](test/system/selftests/sop-d4-lambda-consume.top), [T33](test/system/selftests/sop-d4-lambda-transfer.top), [T34](test/system/selftests/sop-d4-memory-returned.top), [T35](test/system/selftests/sop-d4-memory-moved.top), [T39](test/system/selftests/sop-d4-memory-owned-elements.top) |
+| R60 | [T32](test/system/selftests/sop-d4-lambda-consume.top), [T33](test/system/selftests/sop-d4-lambda-transfer.top), [T34](test/system/selftests/sop-d4-memory-returned.top), [T35](test/system/selftests/sop-d4-memory-moved.top), [T39](test/system/selftests/sop-d4-memory-owned-elements.top) |
+| R61 | [T36](test/system/selftests/sop-d4-memory-nested.top), [T39](test/system/selftests/sop-d4-memory-owned-elements.top), [T40](test/system/selftests/sop-d4-memory-sum-elements.top) |
+| R62 | [T37](test/system/selftests/sop-d4-memory-sliced.top) |
+| R63 | [T5](test/system/selftests/sop-d4-length-evaluation.top), [T38](test/system/selftests/sop-d4-memory-unnamed.top) |
+| R64 | [T10](test/system/selftests/sop-d4-index-evaluation.top), [T38](test/system/selftests/sop-d4-memory-unnamed.top) |
+| R65 | [T16](test/system/selftests/sop-d4-slice-evaluation.top), [T38](test/system/selftests/sop-d4-memory-unnamed.top) |
+| R66 | [T34](test/system/selftests/sop-d4-memory-returned.top), [T35](test/system/selftests/sop-d4-memory-moved.top), [T36](test/system/selftests/sop-d4-memory-nested.top), [T37](test/system/selftests/sop-d4-memory-sliced.top), [T39](test/system/selftests/sop-d4-memory-owned-elements.top), [T40](test/system/selftests/sop-d4-memory-sum-elements.top), [T45](test/unit/codegen/SOPD4CodegenTest.cpp) |
+| R67 | [T45](test/unit/codegen/SOPD4CodegenTest.cpp) |
+| R68 | [T32](test/system/selftests/sop-d4-lambda-consume.top), [T33](test/system/selftests/sop-d4-lambda-transfer.top), [T34](test/system/selftests/sop-d4-memory-returned.top), [T35](test/system/selftests/sop-d4-memory-moved.top), [T36](test/system/selftests/sop-d4-memory-nested.top), [T37](test/system/selftests/sop-d4-memory-sliced.top), [T38](test/system/selftests/sop-d4-memory-unnamed.top), [T39](test/system/selftests/sop-d4-memory-owned-elements.top), [T40](test/system/selftests/sop-d4-memory-sum-elements.top), [T45](test/unit/codegen/SOPD4CodegenTest.cpp) |
+| R69 | [All programs](test/system/sop-d4-cases.json) |
+| R70 | [T41](test/unit/codegen/SOPD4CodegenTest.cpp), [T42](test/unit/codegen/SOPD4CodegenTest.cpp), [T43](test/unit/codegen/SOPD4CodegenTest.cpp), [T44](test/unit/codegen/SOPD4CodegenTest.cpp), [T45](test/unit/codegen/SOPD4CodegenTest.cpp), [T46](test/unit/codegen/SOPD4CodegenTest.cpp), [T47](test/unit/codegen/SOPD4CodegenTest.cpp), [T48](test/unit/codegen/SOPD4CodegenTest.cpp) |
+| R71 | [All programs](test/system/sop-d4-cases.json) |
+| R72 | [All programs](test/system/sop-d4-cases.json) |
+| R73 | [T47](test/unit/codegen/SOPD4CodegenTest.cpp), [Memory runner](bin/run-sop-memory-tests.sh) |
+| R74 | [Memory runner](bin/run-sop-memory-tests.sh) |
+| R75 | [Memory runner](bin/run-sop-memory-tests.sh) |
+| R76 | [T50](test/system/run.py) |
+| R77 | [T50](test/system/run.py) |
+| R78 | [T50](test/system/run.py) |
+| R79 | [T50](test/system/run.py) |
+| R80 | [T41](test/unit/codegen/SOPD4CodegenTest.cpp), [T42](test/unit/codegen/SOPD4CodegenTest.cpp), [T43](test/unit/codegen/SOPD4CodegenTest.cpp), [T44](test/unit/codegen/SOPD4CodegenTest.cpp), [T45](test/unit/codegen/SOPD4CodegenTest.cpp), [T46](test/unit/codegen/SOPD4CodegenTest.cpp), [T48](test/unit/codegen/SOPD4CodegenTest.cpp) |
+
+### Running the Tests
+
+Build `topc`, `top_rtlib`, and `codegen_unit_tests` with the matching LLVM toolchain.
+Set `TOPCLANG` to its clang executable. `TOPC` and `RTLIB` may select an alternate build.
+
+```bash
+bin/run-sop-tests.sh --check
+bin/run-sop-tests.sh --semantic-only
+bin/run-sop-tests.sh --junit /tmp/sop-d4.xml
+bin/run-sop-memory-tests.sh --junit /tmp/sop-d4-memory.xml
+ctest --test-dir build -R '^SOP[ _]D4' --output-on-failure
+python3 test/system/run.py --exclude-sop-d4
+```
+
+`bin/runtests.sh` includes the new self-checks, runtime-failure cases, and CTest
+checks. `--exclude-sop-d4` isolates the preexisting system regressions.

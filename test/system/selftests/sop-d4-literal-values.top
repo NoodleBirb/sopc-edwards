@@ -1,0 +1,12 @@
+// T1: R3, R7, R9
+main() {
+ var s;
+ s = [10, 20, 30];
+ if (#s != 3) error 101;
+ if (s[0] != 10) error 102;
+ if (s[1] != 20) error 103;
+ if (s[2] != 30) error 104;
+ if (#s != 3) error 105;
+ if (s[1] != 20) error 106;
+ return 0;
+}

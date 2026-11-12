@@ -1,10 +1,10 @@
 # Deliverable 4: Code Generation and Runtime Design
 
 This note records the design decisions made while developing
-[REQUIREMENTS4.md](REQUIREMENTS4.md). Implementation and test planning are still
-in progress. The walkthrough below describes intended lowering, not IR captured
-from a completed implementation. Regression and sanitizer results remain to be
-recorded after implementation.
+[REQUIREMENTS4.md](REQUIREMENTS4.md). The test suite, traceability table, and
+memory-safety matrix are implemented. D4 compiler lowering is still pending.
+The walkthrough below describes intended lowering, not IR captured from a
+completed implementation. Actual test results are recorded at the end.
 
 ## Sequence Representation
 
@@ -115,12 +115,14 @@ non-owning reference to a slot containing an owned integer pointer. The outer
 borrow already encodes non-owning access, so the binder does not need to acquire
 ownership or become an owning binding. Ordinary owned bindings are unaffected.
 
-**Remaining source-compatibility check:** page 7 of the D4 handout describes
+**Remaining source compatibility:** page 7 of the D4 handout describes
 element-typed non-owning binders and forwards them with an additional explicit
-borrow. Those call forms must be checked against the chosen D3 contract. This
-does not change the decision to use borrow-typed binders; it identifies a
-possible difference in accepted source syntax. Semantic fixes needed for intended
-SOP behavior are permitted by R78.
+borrow. A fresh D3 build rejects the handout's owned-row forwarding example
+because it adds a borrow to an already-borrowed binder. T25 and T27 use the
+selected D3 convention and pass the binder directly. The chosen `borrow&T`
+contract remains unchanged; supporting the handout's additional-borrow call
+forms remains an integration issue. Semantic fixes needed for intended SOP
+behavior are permitted by R78.
 
 ## Destruction and Unnamed Sequences
 
@@ -221,24 +223,61 @@ simplify, so record the actual output rather than assume this exact block layout
 
 Requirements: R69–R80 and the construct-specific requirements.
 
-No passing D4 or TOP regression results are claimed by this design draft.
-The final evidence must include:
+The suite contains 40 program fixtures, eight Catch2 IR cases, a runtime-oracle
+test module, and existing-regression coverage. T1–T50, links for R1–R80, and all
+six required lifecycle rows are recorded in REQUIREMENTS4.md. The machine-readable
+manifest is `test/system/sop-d4-cases.json`; its consistency check verifies the
+documented source paths, test identifiers, and requirement links.
 
-- Self-checking SOP programs covering each construct and boundary behavior.
-- Runtime-error programs checking the error category, nonzero status, and absence
-  of output after the failing operation.
-- The six-row memory-safety matrix in REQUIREMENTS4.md, linked to programs and
-  actual release points. Its lifecycle rows are returned, moved, nested, sliced,
-  unnamed, and sequences owning their elements.
-- Sanitized memory runs through `bin/run-sop-memory-tests.sh`, with leak detection
-  enabled and failure on any sanitizer report. That runner remains to be written.
-- Catch2 IR checks for allocation, length, a bounds check, a loop, and release.
-- Runs with optimization enabled and disabled, and sanitizer coverage of new
-  memory accesses and cleanup helpers.
-- Passing preexisting unit and system suites through `bin/runtests.sh`, plus
-  coverage inspection through `bin/gencov.sh`.
+`bin/run-sop-tests.sh` separates compilation, linking, and execution. A runtime
+failure passes only with the expected category, nonzero status, and exact
+pre-failure output. Compiler rejection, signal termination, later output, and
+sanitizer reports fail. `bin/run-sop-memory-tests.sh` reruns all 35 valid programs
+with ASan and leak detection, in both optimization modes. The five failure
+programs contain 23 parameterized input cases and run separately from normal
+lifecycle checks.
 
-After implementation, record the actual commands, toolchain/build identity,
-results, and report locations here. Those results, together with the unchanged
-expected TOP behavior, will establish regression evidence. Test identifiers and
-requirement links will be added after the guided test-planning phase.
+### Results Recorded 2026-11-12
+
+The compiler source base is `2064c7e`; the new test changes are additional work.
+Validation used an isolated Debug build at `/tmp/sopc-d4-tests-build`, LLVM/clang
+22.1.8, and cached ANTLR/Catch2 sources. Production compiler sources were not
+changed while writing the tests.
+
+| Check | Result |
+| --- | --- |
+| Build compiler, runtime, and test binaries | Passed |
+| D3 semantic analysis of new program fixtures | 40/40 passed |
+| Runtime-runner oracle checks | 11/11 passed |
+| Manifest, traceability, and lifecycle consistency | Passed |
+| Preexisting unit tests | 594/594 passed |
+| Preexisting system tests | 244/244 passed |
+| New D4 program runs, both optimization modes | 0/80 reached execution: compilation stops at the explicit D4 code-generation gate |
+| New sanitized memory runs, both modes | 0/70 reached execution: the same compilation gate blocks them |
+| New Catch2 IR cases | T45 passes; T41–T44 and T46–T48 fail while SOP lowering is absent |
+
+T45 confirms the existing return-value/cleanup ordering mechanism. Its pass does
+not establish that sequence allocation or recursive cleanup is implemented.
+The new tests remain failing implementation targets; they are not skipped.
+
+Reproduction commands, with `TOPC` and `TOPCLANG` selecting the isolated build:
+
+```bash
+export TOPC=/tmp/sopc-d4-tests-build/src/topc
+export TOPCLANG=/usr/lib/llvm-22/bin/clang
+bin/run-sop-tests.sh --semantic-only --jobs 4 --junit /tmp/sopc-d4-semantic.xml
+bin/run-sop-tests.sh --jobs 4 --junit /tmp/sopc-d4-system.xml
+bin/run-sop-memory-tests.sh --jobs 4 --junit /tmp/sopc-d4-memory.xml
+ctest --test-dir /tmp/sopc-d4-tests-build -R '^SOP[ _]D4' --output-on-failure
+ctest --test-dir /tmp/sopc-d4-tests-build -E '^SOP[ _]D4' --output-on-failure
+python3 test/system/run.py --exclude-sop-d4 -j 4 --junit /tmp/sopc-d4-legacy-system.xml
+```
+
+The legacy system run passed outside the tool sandbox: LeakSanitizer cannot run
+under the sandbox's tracing, which was also reproduced with an unchanged TOP
+control program. The isolated build and reports are temporary session artifacts.
+
+After implementing lowering, rerun the complete suite through `bin/runtests.sh`,
+the dedicated memory runner, and coverage inspection through `bin/gencov.sh`.
+Replace the planned walkthrough with actual compiler-emitted IR and update these
+results. Sanitized SOP execution and D4 implementation coverage are not yet proven.

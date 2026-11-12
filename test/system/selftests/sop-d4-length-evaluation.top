@@ -1,0 +1,10 @@
+// T5: R7, R8, R63
+make(p) { *p = *p + 1; return [10, 20, 30]; }
+main() {
+ var calls, n;
+ calls = 0;
+ n = #make(&calls);
+ if (calls != 1) error 501;
+ if (n != 3) error 502;
+ return 0;
+}

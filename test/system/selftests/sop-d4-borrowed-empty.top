@@ -1,0 +1,9 @@
+// T28: R40, R43, R48
+main() {
+ var seed, empty, e;
+ seed = [1]; empty = seed[0:0]; e = 42;
+ for (e : &empty) { error 2801; }
+ if (e != 42) error 2802;
+ if (#empty != 0) error 2803;
+ return 0;
+}
