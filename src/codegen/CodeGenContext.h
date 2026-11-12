@@ -44,6 +44,8 @@ struct CodeGenContext {
   // sum type name (e.g. "List" -> @_top_destroy_List).
   std::map<std::string, llvm::Function *> sumDestroyFns;
 
+  std::map<std::string, llvm::Function *> sequenceDestroyFns;
+
   // Global variables emitted into the module
   llvm::GlobalVariable *topFunctionTable = nullptr;
   llvm::GlobalVariable *topNumInputs     = nullptr;

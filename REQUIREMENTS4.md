@@ -296,6 +296,13 @@ memory-lifecycle case.
 | T49 | [test/system/test_sop_d4_runner.py](test/system/test_sop_d4_runner.py) | Reject compiler/link failures, crashes, missing categories/effects, later output, and sanitizer reports as false positives. | R1, R2 |
 | T50 | [test/system/run.py](test/system/run.py) | Run existing TOP/D3 suites unchanged and review scope/non-goal preservation. | R76, R77, R78, R79 |
 
+### Additional Implementation Regressions
+
+| Test | Program or test artifact | Assertions | Primary requirements |
+| --- | --- | --- | --- |
+| T51 | [selftests/sop-d4-generic-iteration.top](test/system/selftests/sop-d4-generic-iteration.top) | One generic loop handles Copy and Own elements; verify named forwarding and a lambda relay. | R42, R44, R46, R47, R48, R54, R56, R57 |
+| T52 | [selftests/sop-d4-temporary-loop.top](test/system/selftests/sop-d4-temporary-loop.top) | Keep a temporary nested owner alive throughout borrowed iteration; repeat temporary length/slice cleanup inside a range. | R40, R46, R48, R58, R61, R63, R65, R68 |
+
 ### Memory-Safety Matrix
 
 Release points are required behavior; sanitizer results remain separate evidence.
@@ -311,9 +318,9 @@ Release points are required behavior; sanitizer results remain separate evidence
 
 ### Requirement Traceability
 
-“All programs” means T1–T40, including both optimization modes. “Memory runner”
-means all successful T1–T40 cases under sanitizers; it excludes T8, T9, T15, T18,
-and T22. Scope and non-goals also require review alongside the unchanged D3
+“All programs” means T1–T40 and T51–T52, including both optimization modes.
+“Memory runner” means all successful program cases under sanitizers; it excludes
+T8, T9, T15, T18, and T22. Scope and non-goals also require review alongside the unchanged D3
 regressions; an execution test alone does not prove the absence of new features.
 
 | Requirement | Tests |
@@ -357,35 +364,35 @@ regressions; an execution test alone does not prove the absence of new features.
 | R37 | [T22](test/system/runtime/sop-d4-zero-step.top) |
 | R38 | [T21](test/system/selftests/sop-d4-range-overflow.top) |
 | R39 | [T21](test/system/selftests/sop-d4-range-overflow.top) |
-| R40 | [T26](test/system/selftests/sop-d4-borrowed-evaluation.top), [T28](test/system/selftests/sop-d4-borrowed-empty.top) |
+| R40 | [T26](test/system/selftests/sop-d4-borrowed-evaluation.top), [T28](test/system/selftests/sop-d4-borrowed-empty.top), [T52](test/system/selftests/sop-d4-temporary-loop.top) |
 | R41 | [T23](test/system/selftests/sop-d4-borrowed-copy.top), [T24](test/system/selftests/sop-d4-borrowed-parameter.top) |
-| R42 | [T23](test/system/selftests/sop-d4-borrowed-copy.top), [T24](test/system/selftests/sop-d4-borrowed-parameter.top), [T25](test/system/selftests/sop-d4-borrowed-nested.top), [T26](test/system/selftests/sop-d4-borrowed-evaluation.top), [T27](test/system/selftests/sop-d4-borrowed-own.top) |
+| R42 | [T23](test/system/selftests/sop-d4-borrowed-copy.top), [T24](test/system/selftests/sop-d4-borrowed-parameter.top), [T25](test/system/selftests/sop-d4-borrowed-nested.top), [T26](test/system/selftests/sop-d4-borrowed-evaluation.top), [T27](test/system/selftests/sop-d4-borrowed-own.top), [T51](test/system/selftests/sop-d4-generic-iteration.top) |
 | R43 | [T24](test/system/selftests/sop-d4-borrowed-parameter.top), [T28](test/system/selftests/sop-d4-borrowed-empty.top) |
-| R44 | [T23](test/system/selftests/sop-d4-borrowed-copy.top) |
+| R44 | [T23](test/system/selftests/sop-d4-borrowed-copy.top), [T51](test/system/selftests/sop-d4-generic-iteration.top) |
 | R45 | [T23](test/system/selftests/sop-d4-borrowed-copy.top) |
-| R46 | [T25](test/system/selftests/sop-d4-borrowed-nested.top), [T27](test/system/selftests/sop-d4-borrowed-own.top), [T36](test/system/selftests/sop-d4-memory-nested.top), [T40](test/system/selftests/sop-d4-memory-sum-elements.top) |
-| R47 | [T23](test/system/selftests/sop-d4-borrowed-copy.top), [T24](test/system/selftests/sop-d4-borrowed-parameter.top), [T25](test/system/selftests/sop-d4-borrowed-nested.top), [T27](test/system/selftests/sop-d4-borrowed-own.top) |
-| R48 | [T23](test/system/selftests/sop-d4-borrowed-copy.top), [T24](test/system/selftests/sop-d4-borrowed-parameter.top), [T25](test/system/selftests/sop-d4-borrowed-nested.top), [T27](test/system/selftests/sop-d4-borrowed-own.top), [T28](test/system/selftests/sop-d4-borrowed-empty.top) |
+| R46 | [T25](test/system/selftests/sop-d4-borrowed-nested.top), [T27](test/system/selftests/sop-d4-borrowed-own.top), [T36](test/system/selftests/sop-d4-memory-nested.top), [T40](test/system/selftests/sop-d4-memory-sum-elements.top), [T51](test/system/selftests/sop-d4-generic-iteration.top), [T52](test/system/selftests/sop-d4-temporary-loop.top) |
+| R47 | [T23](test/system/selftests/sop-d4-borrowed-copy.top), [T24](test/system/selftests/sop-d4-borrowed-parameter.top), [T25](test/system/selftests/sop-d4-borrowed-nested.top), [T27](test/system/selftests/sop-d4-borrowed-own.top), [T51](test/system/selftests/sop-d4-generic-iteration.top) |
+| R48 | [T23](test/system/selftests/sop-d4-borrowed-copy.top), [T24](test/system/selftests/sop-d4-borrowed-parameter.top), [T25](test/system/selftests/sop-d4-borrowed-nested.top), [T27](test/system/selftests/sop-d4-borrowed-own.top), [T28](test/system/selftests/sop-d4-borrowed-empty.top), [T51](test/system/selftests/sop-d4-generic-iteration.top), [T52](test/system/selftests/sop-d4-temporary-loop.top) |
 | R49 | [T29](test/system/selftests/sop-d4-lambda-forms.top), [T46](test/unit/codegen/SOPD4CodegenTest.cpp) |
 | R50 | [T29](test/system/selftests/sop-d4-lambda-forms.top), [T46](test/unit/codegen/SOPD4CodegenTest.cpp) |
 | R51 | [T29](test/system/selftests/sop-d4-lambda-forms.top), [T31](test/system/selftests/sop-d4-call-evaluation.top), [T46](test/unit/codegen/SOPD4CodegenTest.cpp) |
 | R52 | [T29](test/system/selftests/sop-d4-lambda-forms.top), [T46](test/unit/codegen/SOPD4CodegenTest.cpp) |
 | R53 | [T29](test/system/selftests/sop-d4-lambda-forms.top) |
-| R54 | [T29](test/system/selftests/sop-d4-lambda-forms.top), [T30](test/system/selftests/sop-d4-higher-order.top), [T31](test/system/selftests/sop-d4-call-evaluation.top), [T46](test/unit/codegen/SOPD4CodegenTest.cpp) |
+| R54 | [T29](test/system/selftests/sop-d4-lambda-forms.top), [T30](test/system/selftests/sop-d4-higher-order.top), [T31](test/system/selftests/sop-d4-call-evaluation.top), [T46](test/unit/codegen/SOPD4CodegenTest.cpp), [T51](test/system/selftests/sop-d4-generic-iteration.top) |
 | R55 | [T31](test/system/selftests/sop-d4-call-evaluation.top) |
-| R56 | [T30](test/system/selftests/sop-d4-higher-order.top), [T32](test/system/selftests/sop-d4-lambda-consume.top), [T33](test/system/selftests/sop-d4-lambda-transfer.top) |
-| R57 | [T30](test/system/selftests/sop-d4-higher-order.top) |
-| R58 | [T32](test/system/selftests/sop-d4-lambda-consume.top), [T33](test/system/selftests/sop-d4-lambda-transfer.top), [T34](test/system/selftests/sop-d4-memory-returned.top), [T35](test/system/selftests/sop-d4-memory-moved.top), [T36](test/system/selftests/sop-d4-memory-nested.top), [T37](test/system/selftests/sop-d4-memory-sliced.top), [T38](test/system/selftests/sop-d4-memory-unnamed.top), [T39](test/system/selftests/sop-d4-memory-owned-elements.top), [T40](test/system/selftests/sop-d4-memory-sum-elements.top) |
+| R56 | [T30](test/system/selftests/sop-d4-higher-order.top), [T32](test/system/selftests/sop-d4-lambda-consume.top), [T33](test/system/selftests/sop-d4-lambda-transfer.top), [T51](test/system/selftests/sop-d4-generic-iteration.top) |
+| R57 | [T30](test/system/selftests/sop-d4-higher-order.top), [T51](test/system/selftests/sop-d4-generic-iteration.top) |
+| R58 | [T32](test/system/selftests/sop-d4-lambda-consume.top), [T33](test/system/selftests/sop-d4-lambda-transfer.top), [T34](test/system/selftests/sop-d4-memory-returned.top), [T35](test/system/selftests/sop-d4-memory-moved.top), [T36](test/system/selftests/sop-d4-memory-nested.top), [T37](test/system/selftests/sop-d4-memory-sliced.top), [T38](test/system/selftests/sop-d4-memory-unnamed.top), [T39](test/system/selftests/sop-d4-memory-owned-elements.top), [T40](test/system/selftests/sop-d4-memory-sum-elements.top), [T52](test/system/selftests/sop-d4-temporary-loop.top) |
 | R59 | [T32](test/system/selftests/sop-d4-lambda-consume.top), [T33](test/system/selftests/sop-d4-lambda-transfer.top), [T34](test/system/selftests/sop-d4-memory-returned.top), [T35](test/system/selftests/sop-d4-memory-moved.top), [T39](test/system/selftests/sop-d4-memory-owned-elements.top) |
 | R60 | [T32](test/system/selftests/sop-d4-lambda-consume.top), [T33](test/system/selftests/sop-d4-lambda-transfer.top), [T34](test/system/selftests/sop-d4-memory-returned.top), [T35](test/system/selftests/sop-d4-memory-moved.top), [T39](test/system/selftests/sop-d4-memory-owned-elements.top) |
-| R61 | [T36](test/system/selftests/sop-d4-memory-nested.top), [T39](test/system/selftests/sop-d4-memory-owned-elements.top), [T40](test/system/selftests/sop-d4-memory-sum-elements.top) |
+| R61 | [T36](test/system/selftests/sop-d4-memory-nested.top), [T39](test/system/selftests/sop-d4-memory-owned-elements.top), [T40](test/system/selftests/sop-d4-memory-sum-elements.top), [T52](test/system/selftests/sop-d4-temporary-loop.top) |
 | R62 | [T37](test/system/selftests/sop-d4-memory-sliced.top) |
-| R63 | [T5](test/system/selftests/sop-d4-length-evaluation.top), [T38](test/system/selftests/sop-d4-memory-unnamed.top) |
+| R63 | [T5](test/system/selftests/sop-d4-length-evaluation.top), [T38](test/system/selftests/sop-d4-memory-unnamed.top), [T52](test/system/selftests/sop-d4-temporary-loop.top) |
 | R64 | [T10](test/system/selftests/sop-d4-index-evaluation.top), [T38](test/system/selftests/sop-d4-memory-unnamed.top) |
-| R65 | [T16](test/system/selftests/sop-d4-slice-evaluation.top), [T38](test/system/selftests/sop-d4-memory-unnamed.top) |
+| R65 | [T16](test/system/selftests/sop-d4-slice-evaluation.top), [T38](test/system/selftests/sop-d4-memory-unnamed.top), [T52](test/system/selftests/sop-d4-temporary-loop.top) |
 | R66 | [T34](test/system/selftests/sop-d4-memory-returned.top), [T35](test/system/selftests/sop-d4-memory-moved.top), [T36](test/system/selftests/sop-d4-memory-nested.top), [T37](test/system/selftests/sop-d4-memory-sliced.top), [T39](test/system/selftests/sop-d4-memory-owned-elements.top), [T40](test/system/selftests/sop-d4-memory-sum-elements.top), [T45](test/unit/codegen/SOPD4CodegenTest.cpp) |
 | R67 | [T45](test/unit/codegen/SOPD4CodegenTest.cpp) |
-| R68 | [T32](test/system/selftests/sop-d4-lambda-consume.top), [T33](test/system/selftests/sop-d4-lambda-transfer.top), [T34](test/system/selftests/sop-d4-memory-returned.top), [T35](test/system/selftests/sop-d4-memory-moved.top), [T36](test/system/selftests/sop-d4-memory-nested.top), [T37](test/system/selftests/sop-d4-memory-sliced.top), [T38](test/system/selftests/sop-d4-memory-unnamed.top), [T39](test/system/selftests/sop-d4-memory-owned-elements.top), [T40](test/system/selftests/sop-d4-memory-sum-elements.top), [T45](test/unit/codegen/SOPD4CodegenTest.cpp) |
+| R68 | [T32](test/system/selftests/sop-d4-lambda-consume.top), [T33](test/system/selftests/sop-d4-lambda-transfer.top), [T34](test/system/selftests/sop-d4-memory-returned.top), [T35](test/system/selftests/sop-d4-memory-moved.top), [T36](test/system/selftests/sop-d4-memory-nested.top), [T37](test/system/selftests/sop-d4-memory-sliced.top), [T38](test/system/selftests/sop-d4-memory-unnamed.top), [T39](test/system/selftests/sop-d4-memory-owned-elements.top), [T40](test/system/selftests/sop-d4-memory-sum-elements.top), [T45](test/unit/codegen/SOPD4CodegenTest.cpp), [T52](test/system/selftests/sop-d4-temporary-loop.top) |
 | R69 | [All programs](test/system/sop-d4-cases.json) |
 | R70 | [T41](test/unit/codegen/SOPD4CodegenTest.cpp), [T42](test/unit/codegen/SOPD4CodegenTest.cpp), [T43](test/unit/codegen/SOPD4CodegenTest.cpp), [T44](test/unit/codegen/SOPD4CodegenTest.cpp), [T45](test/unit/codegen/SOPD4CodegenTest.cpp), [T46](test/unit/codegen/SOPD4CodegenTest.cpp), [T47](test/unit/codegen/SOPD4CodegenTest.cpp), [T48](test/unit/codegen/SOPD4CodegenTest.cpp) |
 | R71 | [All programs](test/system/sop-d4-cases.json) |

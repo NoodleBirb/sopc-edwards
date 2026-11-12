@@ -143,10 +143,10 @@ the expected diagnostic category and nonzero exit, and no later source output.
 A compiler rejection or crash is a failed test, not an expected runtime failure.
 
 `bin/runtests.sh` includes new self-checks, runtime-failure cases, and CTest tests.
-To isolate preexisting system tests while implementing D4, run:
+To isolate preexisting system regressions, run:
 
 ```bash
 python3 test/system/run.py --exclude-sop-d4 --junit /tmp/top-regressions.xml
 ```
 
-The D4 code-generation tests intentionally fail until the lowering is implemented.
+D4 lowering is implemented; these tests check generated behavior and LLVM structure.

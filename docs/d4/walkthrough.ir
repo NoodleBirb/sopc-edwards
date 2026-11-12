@@ -1,0 +1,129 @@
+; ModuleID = 'docs/d4/walkthrough.top'
+source_filename = "docs/d4/walkthrough.top"
+target triple = "x86_64-pc-linux-gnu"
+
+@_top_ftable = internal constant [1 x ptr] [ptr @_top_main]
+@_top_num_inputs = constant i64 1
+@_top_input_array = common global [1 x i64] zeroinitializer
+
+; Function Attrs: nocallback nofree nosync nounwind willreturn memory(none)
+declare void @llvm.donothing() #0
+
+define i64 @_top_main() {
+entry:
+  %total = alloca i64, align 8
+  %i = alloca i64, align 8
+  %s = alloca i64, align 8
+  %index = alloca i64, align 8
+  %topinput0 = load i64, ptr @_top_input_array, align 4
+  store i64 %topinput0, ptr %index, align 4
+  store i64 0, ptr %s, align 4
+  store i64 0, ptr %i, align 4
+  store i64 0, ptr %total, align 4
+  %sequence.storage = call ptr @calloc(i64 4, i64 8)
+  store i64 3, ptr %sequence.storage, align 4
+  %0 = getelementptr inbounds i64, ptr %sequence.storage, i64 1
+  store i64 10, ptr %0, align 4
+  %1 = getelementptr inbounds i64, ptr %sequence.storage, i64 2
+  store i64 20, ptr %1, align 4
+  %2 = getelementptr inbounds i64, ptr %sequence.storage, i64 3
+  store i64 30, ptr %2, align 4
+  %sequence.value = ptrtoint ptr %sequence.storage to i64
+  store i64 %sequence.value, ptr %s, align 4
+  store i64 0, ptr %total, align 4
+  %s1 = load i64, ptr %s, align 4
+  %sequence.header = inttoptr i64 %s1 to ptr
+  %sequence.length = load i64, ptr %sequence.header, align 4
+  br i1 true, label %sop.ok, label %sop.error
+
+sop.ok:                                           ; preds = %entry
+  br label %for.header
+
+sop.error:                                        ; preds = %entry
+  call void @_top_sop_error(i64 2, i64 5)
+  unreachable
+
+for.header:                                       ; preds = %sop.ok7, %sop.ok
+  %for.counter = phi i64 [ 0, %sop.ok ], [ %range.next, %sop.ok7 ]
+  %3 = icmp slt i64 %for.counter, %sequence.length
+  %4 = icmp sgt i64 %for.counter, %sequence.length
+  %5 = select i1 true, i1 %3, i1 %4
+  br i1 %5, label %for.body, label %for.exit
+
+for.body:                                         ; preds = %for.header
+  store i64 %for.counter, ptr %i, align 4
+  %total2 = load i64, ptr %total, align 4
+  %s3 = load i64, ptr %s, align 4
+  %i4 = load i64, ptr %i, align 4
+  %sequence.header5 = inttoptr i64 %s3 to ptr
+  %sequence.length6 = load i64, ptr %sequence.header5, align 4
+  %6 = icmp sge i64 %i4, 0
+  %7 = icmp slt i64 %i4, %sequence.length6
+  %index.valid = and i1 %6, %7
+  br i1 %index.valid, label %sop.ok7, label %sop.error8
+
+for.exit:                                         ; preds = %sop.ok7, %for.header
+  call void @llvm.donothing()
+  %total9 = load i64, ptr %total, align 4
+  %s10 = load i64, ptr %s, align 4
+  %index11 = load i64, ptr %index, align 4
+  %sequence.header12 = inttoptr i64 %s10 to ptr
+  %sequence.length13 = load i64, ptr %sequence.header12, align 4
+  %8 = icmp sge i64 %index11, 0
+  %9 = icmp slt i64 %index11, %sequence.length13
+  %index.valid14 = and i1 %8, %9
+  br i1 %index.valid14, label %sop.ok15, label %sop.error16
+
+sop.ok7:                                          ; preds = %for.body
+  %element.offset = add i64 %i4, 1
+  %element.slot = getelementptr inbounds i64, ptr %sequence.header5, i64 %element.offset
+  %element.value = load i64, ptr %element.slot, align 4
+  %add = add i64 %total2, %element.value
+  store i64 %add, ptr %total, align 4
+  %range.advance = call { i64, i1 } @llvm.sadd.with.overflow.i64(i64 %for.counter, i64 1)
+  %range.next = extractvalue { i64, i1 } %range.advance, 0
+  %range.overflow = extractvalue { i64, i1 } %range.advance, 1
+  br i1 %range.overflow, label %for.exit, label %for.header
+
+sop.error8:                                       ; preds = %for.body
+  call void @_top_sop_error(i64 1, i64 6)
+  unreachable
+
+sop.ok15:                                         ; preds = %for.exit
+  %element.offset17 = add i64 %index11, 1
+  %element.slot18 = getelementptr inbounds i64, ptr %sequence.header12, i64 %element.offset17
+  %element.value19 = load i64, ptr %element.slot18, align 4
+  %add20 = add i64 %total9, %element.value19
+  %s.val = load i64, ptr %s, align 4
+  call void @_top_destroy_sequence.0(i64 %s.val)
+  call void @llvm.donothing()
+  ret i64 %add20
+
+sop.error16:                                      ; preds = %for.exit
+  call void @_top_sop_error(i64 1, i64 8)
+  unreachable
+}
+
+; Function Attrs: nounwind
+declare noalias ptr @calloc(i64, i64) #1
+
+; Function Attrs: noreturn
+declare void @_top_sop_error(i64, i64) #2
+
+; Function Attrs: nocallback nocreateundeforpoison nofree nosync nounwind speculatable willreturn memory(none)
+declare { i64, i1 } @llvm.sadd.with.overflow.i64(i64, i64) #3
+
+; Function Attrs: nounwind
+declare void @free(ptr) #1
+
+define internal void @_top_destroy_sequence.0(i64 %0) {
+entry:
+  %sequence.storage = inttoptr i64 %0 to ptr
+  call void @free(ptr %sequence.storage)
+  ret void
+}
+
+attributes #0 = { nocallback nofree nosync nounwind willreturn memory(none) }
+attributes #1 = { nounwind }
+attributes #2 = { noreturn }
+attributes #3 = { nocallback nocreateundeforpoison nofree nosync nounwind speculatable willreturn memory(none) }

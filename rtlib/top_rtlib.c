@@ -40,6 +40,13 @@ void _top_division_error(int64_t line, int64_t overflow) {
   exit(-1);
 }
 
+/* D4 failures are checked before any invalid access or range advancement. */
+void _top_sop_error(int64_t category, int64_t line) {
+  printf("[error] Error: %s on line %" PRId64 "\n",
+         category == 1 ? "OutOfBounds" : "ZeroStep", line);
+  exit(-1);
+}
+
 /*
  * If the compiled program has no "main" function then one is created
  * that calls this function.

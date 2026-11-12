@@ -1,7 +1,7 @@
 #pragma once
 #include "ASTVisitor.h"
 
-// Detect source constructs whose later-phase semantics are not implemented yet.
+// Detect SOP constructs for phase-specific preparation and analysis.
 inline bool containsSOP(ASTNode *root) {
   class Detector : public ASTVisitor {
   public:

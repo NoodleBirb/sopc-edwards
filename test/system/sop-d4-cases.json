@@ -734,6 +734,38 @@
       ],
       "kind": "regression",
       "artifact": "test/system/run.py"
+    },
+    {
+      "id": "T51",
+      "description": "Generic iteration across Copy and Own instantiations",
+      "requirements": [
+        42,
+        44,
+        46,
+        47,
+        48,
+        54,
+        56,
+        57
+      ],
+      "kind": "functional",
+      "source": "selftests/sop-d4-generic-iteration.top"
+    },
+    {
+      "id": "T52",
+      "description": "Borrowed temporary lifetime across iteration and repeated cleanup",
+      "requirements": [
+        40,
+        46,
+        48,
+        58,
+        61,
+        63,
+        65,
+        68
+      ],
+      "kind": "functional",
+      "source": "selftests/sop-d4-temporary-loop.top"
     }
   ]
 }

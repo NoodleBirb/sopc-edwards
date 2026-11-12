@@ -596,11 +596,8 @@ int main(int argc, char *argv[]) {
     }
     std::shared_ptr<ASTProgram> ast = FrontEnd::parse(stream);
     const bool sop = containsSOP(ast.get());
-    if (sop && compileRequested)
-      throw SemanticError("SOP code generation belongs to Deliverable 4; "
-                          "select an analysis view");
-    if (sop && (wantsTypes || wantsCallGraph || wantsCFG || wantsOwnership ||
-                wantsBorrow))
+    if (sop && (compileRequested || wantsTypes || wantsCallGraph || wantsCFG ||
+                wantsOwnership || wantsBorrow))
       prepareLambdas(ast.get());
 
     try {

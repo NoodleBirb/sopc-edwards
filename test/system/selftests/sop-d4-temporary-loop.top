@@ -1,0 +1,9 @@
+// T52: R40, R46, R48, R58, R61, R63, R65, R68
+make() { return [[alloc 3], [alloc 4, alloc 5]]; }
+read(p) { return **p; }
+main() { var row, e, n, i; n = 0;
+ for (row : &make()[1]) { n = n + read(row); }
+ if (n != 9) error 1;
+ for (i : 0 .. 3) { n = n + #make() + #[1, 2][0:1]; }
+ if (n != 18) error 2;
+ return 0; }

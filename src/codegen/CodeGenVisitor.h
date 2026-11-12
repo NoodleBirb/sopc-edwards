@@ -7,6 +7,12 @@
 #include <string>
 
 // Forward-declare all AST node types to avoid pulling in AST headers.
+class ASTSequenceExpr;
+class ASTLengthExpr;
+class ASTIndexExpr;
+class ASTSliceExpr;
+class ASTForStmt;
+class ASTLambdaExpr;
 class ASTAllocExpr;
 class ASTAssignStmt;
 class ASTBinaryExpr;
@@ -69,9 +75,15 @@ public:
   // -------------------------------------------------------------------------
   // Per-node generate() overloads — one per concrete AST node type.
   // -------------------------------------------------------------------------
-  llvm::Value *generate(ASTFunction     *node);
-  llvm::Value *generate(ASTNumberExpr   *node);
-  llvm::Value *generate(ASTBinaryExpr   *node);
+  llvm::Value *generate(ASTSequenceExpr *node);
+  llvm::Value *generate(ASTLengthExpr *node);
+  llvm::Value *generate(ASTIndexExpr *node);
+  llvm::Value *generate(ASTSliceExpr *node);
+  llvm::Value *generate(ASTForStmt *node);
+  llvm::Value *generate(ASTLambdaExpr *node);
+  llvm::Value *generate(ASTFunction *node);
+  llvm::Value *generate(ASTNumberExpr *node);
+  llvm::Value *generate(ASTBinaryExpr *node);
   llvm::Value *generate(ASTVariableExpr *node);
   llvm::Value *generate(ASTInputExpr    *node);
   llvm::Value *generate(ASTFunAppExpr   *node);
@@ -97,6 +109,34 @@ private:
   CodeGenContext *ctx_ = nullptr;
   // Set during the top-level generate(); used by generate(ASTDestroyStmt*).
   SemanticAnalysis *semanticAnalysis_ = nullptr;
+  using TypeBindings = std::map<std::string, std::shared_ptr<TopType>>;
+  struct Specialization {
+    ASTFunction *source;
+    llvm::Function *target;
+    TypeBindings bindings;
+  };
+  bool specializeIterations_ = false;
+  ASTFunction *currentFunction_ = nullptr;
+  llvm::Function *specializedTarget_ = nullptr;
+  TypeBindings typeBindings_;
+  std::vector<Specialization> specializations_;
+  std::map<std::string, int> specializationIndices_;
+  std::map<std::string, ASTFunction *> sourceFunctions_;
+  std::vector<llvm::Constant *> functionEntries_;
+  std::shared_ptr<TopType> substituteType(std::shared_ptr<TopType> type) const;
+  std::shared_ptr<TopType> expressionType(ASTExpr *expr) const;
+  llvm::Value *functionValue(
+      ASTFunction *source,
+      const std::vector<std::shared_ptr<TopType>> &params,
+      std::shared_ptr<TopType> result);
+
+  // SSA values of unnamed sequence owners awaiting their D3 cleanup point.
+  std::map<ASTExpr *, llvm::Value *> temporarySequences_;
+  void emitTemporaryCleanup(ASTNode *point, llvm::Value *result);
+  void emitGuard(llvm::Value *valid, int category, int line);
+  llvm::Value *allocateSequence(llvm::Value *length);
+  llvm::Function *getOrCreateSequenceDestroyFn(TopType *type,
+                                              CodeGenContext &ctx);
 
   /*! \brief Lazily declare free() in the module if not yet declared. */
   void ensureFreeDecl(CodeGenContext &ctx);

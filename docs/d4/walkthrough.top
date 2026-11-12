@@ -1,0 +1,9 @@
+main(index) {
+    var s, i, total;
+    s = [10, 20, 30];
+    total = 0;
+    for (i : 0 .. #s) {
+        total = total + s[i];
+    }
+    return total + s[index];
+}

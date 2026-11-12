@@ -4,6 +4,7 @@ target_sources(
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/CodeGenContext.h
           ${CMAKE_CURRENT_SOURCE_DIR}/CodeGenVisitor.h
           ${CMAKE_CURRENT_SOURCE_DIR}/CodeGenVisitor.cpp
+          ${CMAKE_CURRENT_SOURCE_DIR}/SOPCodeGen.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/CodeGenerator.h
           ${CMAKE_CURRENT_SOURCE_DIR}/CodeGenerator.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/CodeGenFunctions.cpp)

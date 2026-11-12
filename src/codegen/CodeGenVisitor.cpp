@@ -6,7 +6,14 @@
 #include "AST.h"
 #include "ASTCaseArm.h"
 #include "ASTCtorPattern.h"
+#include "ASTForStmt.h"
+#include "ASTIndexExpr.h"
+#include "ASTLambdaExpr.h"
+#include "ASTLengthExpr.h"
 #include "ASTPattern.h"
+#include "ASTSequenceExpr.h"
+#include "ASTSliceExpr.h"
+#include "ASTSumTypeDecl.h"
 #include "ASTSumVariant.h"
 #include "ASTVarPattern.h"
 #include "ASTVisitor.h"
@@ -15,11 +22,13 @@
 #include "InternalError.h"
 #include "OwnershipClassifier.h"
 #include "SemanticAnalysis.h"
-#include "ASTSumTypeDecl.h"
 #include "TopMu.h"
 #include "TopOwningRef.h"
+#include "TopSequence.h"
 #include "TopSumType.h"
+#include "TopVar.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
+#include "llvm/Config/llvm-config.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -27,7 +36,6 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Intrinsics.h"
-#include "llvm/Config/llvm-config.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
@@ -99,6 +107,20 @@ CodeGenVisitor::generate(ASTProgram *program,
   LOG_S(1) << "Generating code for program " << programName;
 
   semanticAnalysis_ = semanticAnalysis;
+  temporarySequences_.clear();
+  typeBindings_.clear();
+  specializations_.clear();
+  specializationIndices_.clear();
+  sourceFunctions_.clear();
+  functionEntries_.clear();
+  specializedTarget_ = nullptr;
+  specializeIterations_ = false;
+  for (auto *function : program->getFunctions())
+    for (const auto &iteration :
+         semanticAnalysis_->getTypeResults()->getIterationConstraints(
+             function->getDecl()))
+      if (dynamic_cast<TopVar *>(iteration.binder.get()))
+        specializeIterations_ = true;
 
   CodeGenContext ctx;
   ctx_ = &ctx;
@@ -124,6 +146,7 @@ CodeGenVisitor::generate(ASTProgram *program,
     int funIndex = 0;
     for (auto const &fn : program->getFunctions()) {
       ctx.functionIndex[fn->getName()] = funIndex++;
+      sourceFunctions_[fn->getName()] = fn;
 
       auto formalNames = fn->getFormals();
       std::vector<std::string> names;
@@ -137,6 +160,8 @@ CodeGenVisitor::generate(ASTProgram *program,
     for (auto const &func : program->getFunctions()) {
       programFunctions.emplace_back(getFunction(func->getName(), ctx));
     }
+
+    functionEntries_ = programFunctions;
 
     auto *FunctionOpaquePtrType = llvm::PointerType::get(ctx.llvmContext, 0);
     auto *functionTableType =
@@ -207,10 +232,34 @@ CodeGenVisitor::generate(ASTProgram *program,
     generate(fn);
   }
 
+  // Direct polymorphic calls can need distinct Copy/Own loop binders. Emit
+  // lazily discovered variants without changing source function values' ABI.
+  for (std::size_t i = 0; i < specializations_.size(); ++i) {
+    auto specialization = specializations_[i];
+    typeBindings_ = specialization.bindings;
+    specializedTarget_ = specialization.target;
+    generate(specialization.source);
+  }
+  typeBindings_.clear();
+  specializedTarget_ = nullptr;
+  if (functionEntries_.size() != ctx.functionIndex.size()) {
+    auto *tableType = llvm::ArrayType::get(
+        llvm::PointerType::get(ctx.llvmContext, 0), functionEntries_.size());
+    auto *table = new llvm::GlobalVariable(
+        *ctx.module, tableType, true, llvm::GlobalValue::InternalLinkage,
+        llvm::ConstantArray::get(tableType, functionEntries_),
+        "_top_ftable.final");
+    ctx.topFunctionTable->replaceAllUsesWith(table);
+    ctx.topFunctionTable->eraseFromParent();
+    table->setName("_top_ftable");
+    ctx.topFunctionTable = table;
+  }
+
   auto resultModule = ctx.bundleModule();
   ctx_ = nullptr;
 
-  verifyModule(*resultModule);
+  if (llvm::verifyModule(*resultModule, &llvm::errs()))
+    throw InternalError("generated LLVM module failed verification");
   return resultModule;
 }
 
@@ -228,6 +277,30 @@ llvm::Value *CodeGenVisitor::dispatch(ASTNode *node) {
 
     llvm::Value *result = nullptr;
 
+    bool visit(ASTSequenceExpr *n) override {
+      result = codegen_.generate(n);
+      return false;
+    }
+    bool visit(ASTLengthExpr *n) override {
+      result = codegen_.generate(n);
+      return false;
+    }
+    bool visit(ASTIndexExpr *n) override {
+      result = codegen_.generate(n);
+      return false;
+    }
+    bool visit(ASTSliceExpr *n) override {
+      result = codegen_.generate(n);
+      return false;
+    }
+    bool visit(ASTForStmt *n) override {
+      result = codegen_.generate(n);
+      return false;
+    }
+    bool visit(ASTLambdaExpr *n) override {
+      result = codegen_.generate(n);
+      return false;
+    }
     bool visit(ASTFunction *n) override {
       result = codegen_.generate(n);
       return false;
@@ -319,6 +392,7 @@ llvm::Value *CodeGenVisitor::dispatch(ASTNode *node) {
 
   DispatchVisitor visitor(*this);
   node->accept(&visitor);
+  emitTemporaryCleanup(node, visitor.result);
   return visitor.result;
 }
 
@@ -331,7 +405,10 @@ llvm::Value *CodeGenVisitor::generate(ASTFunction *node) {
 
   auto &ctx = *ctx_;
 
-  llvm::Function *TheFunction = getFunction(node->getName(), ctx);
+  currentFunction_ = node;
+  llvm::Function *TheFunction = specializedTarget_
+                                    ? specializedTarget_
+                                    : getFunction(node->getName(), ctx);
   if (TheFunction == nullptr) {
     throw InternalError("failed to declare the function" + // LCOV_EXCL_LINE
                         node->getName());                  // LCOV_EXCL_LINE
@@ -563,7 +640,18 @@ llvm::Value *CodeGenVisitor::generate(ASTFunAppExpr *node) {
   LOG_S(1) << "Generating code for " << *node;
   auto &ctx = *ctx_;
 
-  auto *funVal = dispatch(node->getFunction());
+  llvm::Value *funVal = nullptr;
+  auto *named = dynamic_cast<ASTVariableExpr *>(node->getFunction());
+  if (named && !ctx.namedValues.count(named->getName()) &&
+      sourceFunctions_.count(named->getName())) {
+    std::vector<std::shared_ptr<TopType>> params;
+    for (auto *actual : node->getActuals())
+      params.push_back(expressionType(actual));
+    funVal = functionValue(sourceFunctions_.at(named->getName()), params,
+                           expressionType(node));
+  } else {
+    funVal = dispatch(node->getFunction());
+  }
   if (funVal == nullptr) {
     throw InternalError("failed to generate bitcode for the function");
   }
@@ -1025,6 +1113,12 @@ void CodeGenVisitor::emitDestroyValue(llvm::Value *ptrAsInt, TopType *topType,
     return;
   }
 
+  if (dynamic_cast<TopSequence *>(topType)) {
+    ctx.irBuilder.CreateCall(getOrCreateSequenceDestroyFn(topType, ctx),
+                             {ptrAsInt});
+    return;
+  }
+
   // Owning reference (own&T): free the pointer itself.
   auto *ptrTy = llvm::PointerType::get(ctx.llvmContext, 0);
   auto *ptr = ctx.irBuilder.CreateIntToPtr(ptrAsInt, ptrTy, "destroyPtr");
@@ -1052,7 +1146,8 @@ llvm::Value *CodeGenVisitor::generate(ASTDestroyStmt *node) {
 
   // Look up the variable's inferred type for recursive destruction.
   // Keep the shared_ptr alive for the duration of emitDestroyValue.
-  auto topTypeShared = semanticAnalysis_->getTypeResults()->getInferredType(decl);
+  auto topTypeShared = substituteType(
+      semanticAnalysis_->getTypeResults()->getInferredType(decl));
   TopType *topType = topTypeShared.get();
 
   emitDestroyValue(ptrAsInt, topType, ctx);

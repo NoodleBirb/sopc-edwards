@@ -1,0 +1,10 @@
+// T51: R42, R44, R46, R47, R48, R54, R56, R57
+fold(p, acc, f) { var e; for (e : p) { acc = f(acc, e); } return acc; }
+relay(p, acc, f) { return fold(p, acc, f); }
+read(p) { return **p; }
+main() { var a, b, g; a = [1, 2]; b = [alloc 3, alloc 4];
+ if (relay(&a, 0, (n, e) => n + e) != 3) error 1;
+ if (relay(&b, 0, (n, e) => n + read(e)) != 7) error 2;
+ g = (p, f) => relay(p, 0, f);
+ if (g(&b, (n, e) => n + read(e)) != 7) error 3;
+ return 0; }
