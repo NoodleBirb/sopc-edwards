@@ -26,3 +26,19 @@ and
 ```
 s = generate(4, (i) => alloc i);
 ```
+
+## Claim
+This extension adds a generator that, at runtime, creates a sequence of n elements of class Copy following a function f.
+
+## Compiler Phases Affected
+Parser - New symbol
+Frontend - New AST Structure
+Type Analysis - Ensures types match, and that ownership is applied to created sequence correctly
+Code Generation - Implement the run-time generation of a sequence.
+
+## Test Plan
+T1: Test that `generate(4, f);` parses.
+T2: Ensure that the AST structure is formed correctly; will be outlined in D5 requirements assuming this passes the proposal check.
+T3: Show that function returns of type Copy succeed.
+T4: Show that something that isn't a function/lambda will result in a type error compile.
+T5: Show that generate cannot be used as an L-Value.
